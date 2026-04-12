@@ -1,0 +1,47 @@
+# Render Deployment Configuration
+# https://render.com/docs/render-yaml
+
+services:
+  - type: web
+    name: fahim-dz
+    env: node
+    region: frankfurt  # Closest to Algeria
+    plan: free         # Upgrade to starter ($7/mo) for always-on
+
+    # Build & Start
+    buildCommand: npm install
+    startCommand: node server/index.js
+
+    # Health check
+    healthCheckPath: /health
+
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+
+    # Environment variables (set these in Render dashboard)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # ↓ Set these in the Render Dashboard → Environment tab
+      - key: JWT_SECRET
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: WHATSAPP_API_VERSION
+        value: v19.0

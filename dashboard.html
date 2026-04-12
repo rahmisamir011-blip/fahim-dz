@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAHIM | لوحة التحكم</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+</head>
+<body>
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a href="index.html" class="sidebar-logo-link">
+        <img src="assets/logo.svg" alt="FAHIM" class="sidebar-logo" />
+      </a>
+    </div>
+
+    <div class="sidebar-search">
+      <input type="text" placeholder="Search" id="sidebar-search" />
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="sidebar-link active" data-page="dashboard">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        الرئيسية
+      </a>
+      <a href="#" class="sidebar-link" data-page="orders">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        الطلبات
+      </a>
+      <a href="#" class="sidebar-link" data-page="products">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        المنتجات
+      </a>
+      <a href="#" class="sidebar-link" data-page="inbox">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        صندوق الوارد
+        <span class="sidebar-badge" id="inbox-badge">3</span>
+      </a>
+      <a href="#" class="sidebar-link" data-page="profile">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        الملف الشخصي
+      </a>
+      <a href="#" class="sidebar-link" data-page="billing">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        الدفع والفواتير
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logout-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        خروج
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-right">
+        <h1 class="page-title" id="page-title">لوحة التحكم</h1>
+      </div>
+      <div class="topbar-left">
+        <div class="store-selector-dropdown" id="store-selector">
+          <div class="store-avatar-wrap">
+            <div class="store-avatar-placeholder">🏪</div>
+          </div>
+          <div class="store-info">
+            <span class="store-name" id="store-name">متجري</span>
+            <span class="store-sub">رأس المال ➡️ يدوية</span>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <button class="notif-icon-btn" id="notif-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-dot"></span>
+        </button>
+
+        <label class="agent-toggle-wrap">
+          <input type="checkbox" id="agent-toggle" checked />
+          <span class="slider"></span>
+          <span class="agent-label" id="agent-label">الوكيل نشط</span>
+        </label>
+      </div>
+    </header>
+
+    <!-- ===== PAGES ===== -->
+
+    <!-- DASHBOARD PAGE -->
+    <div class="page active" id="page-dashboard">
+
+      <!-- Stats Row -->
+      <div class="stats-grid">
+        <div class="stat-widget">
+          <div class="stat-top">
+            <span class="stat-label">القيود</span>
+            <span class="stat-badge limited">محدود</span>
+          </div>
+          <div class="stat-value" id="stat-points">0</div>
+          <div class="stat-sub">نقاط الائتمان</div>
+          <div class="stat-footer">8.3% مستهلكات شهرية</div>
+        </div>
+
+        <div class="stat-widget">
+          <div class="stat-top">
+            <span class="stat-label">رسائل مستلمة</span>
+            <span class="stat-badge connected">متصل</span>
+          </div>
+          <div class="stat-value" id="stat-messages">0</div>
+          <div class="stat-sub">رسائل الاستجابة</div>
+          <div class="stat-footer">92.4% معدل الاستجابة</div>
+        </div>
+
+        <div class="stat-widget">
+          <div class="stat-top">
+            <span class="stat-label">تحويلات الذكاء الاصطناعي</span>
+            <span class="stat-badge percent">18%</span>
+          </div>
+          <div class="stat-value" id="stat-conversions">0</div>
+          <div class="stat-sub">Conversion Rate</div>
+          <div class="stat-footer">14% تحويل بدرن‎</div>
+        </div>
+
+        <div class="stat-widget primary-stat">
+          <div class="stat-top">
+            <span class="stat-label">متوسط القيمة</span>
+            <span class="stat-badge return-b">الاسترداد</span>
+          </div>
+          <div class="stat-value" id="stat-revenue">0 د.ج</div>
+          <div class="stat-sub">إجمالي الإيرادات</div>
+          <div class="stat-footer trend-up">↑ تصاعدي هذا الأسبوع</div>
+        </div>
+      </div>
+
+      <!-- Bottom Row -->
+      <div class="dash-grid">
+
+        <!-- Accounts Panel — SaaS: clients connect via Facebook Business Login -->
+        <div class="accounts-card">
+          <div class="card-header">
+            <h3>الحسابات المربوطة</h3>
+            <span style="font-size:0.68rem;color:#94a3b8;font-weight:500">سجل دخول بحسابك التجاري</span>
+          </div>
+
+          <div class="accounts-list" id="accounts-list">
+            <div class="account-row ig-row" id="row-ig">
+              <div class="acc-left">
+                <div class="acc-icon ig-icon">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="url(#ig3)">
+                    <defs><linearGradient id="ig3" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f09433"/><stop offset="100%" stop-color="#bc1888"/></linearGradient></defs>
+                    <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4" fill="white"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="acc-platform">انستغرام للأعمال</div>
+                  <div class="acc-handle" id="ig-handle">غير مربوط</div>
+                </div>
+              </div>
+              <div class="acc-right">
+                <button class="connect-btn ig-connect" id="connect-ig">ربط</button>
+              </div>
+            </div>
+
+            <div class="account-row fb-row" id="row-fb">
+              <div class="acc-left">
+                <div class="acc-icon fb-icon">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                </div>
+                <div>
+                  <div class="acc-platform">فيسبوك ماسنجر</div>
+                  <div class="acc-handle" id="fb-handle">غير مربوط</div>
+                </div>
+              </div>
+              <div class="acc-right">
+                <button class="connect-btn fb-connect" id="connect-fb">ربط</button>
+              </div>
+            </div>
+
+            <div class="account-row wa-row" id="row-wa">
+              <div class="acc-left">
+                <div class="acc-icon wa-icon">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.557 4.12 1.528 5.847L.057 23.716a.5.5 0 0 0 .602.637l6.017-1.575A11.953 11.953 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+                </div>
+                <div>
+                  <div class="acc-platform">واتساب للأعمال</div>
+                  <div class="acc-handle" id="wa-handle">غير مربوط</div>
+                </div>
+              </div>
+              <div class="acc-right">
+                <button class="connect-btn wa-connect" id="connect-wa">ربط</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart Panel -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div>
+              <h3>الطلبات والإيرادات</h3>
+              <p>معابرة أكل المريدات من الأسروع الماضي</p>
+            </div>
+            <select class="period-select" id="chart-period">
+              <option value="7">آخر 7 أيام</option>
+              <option value="30">آخر 30 يوم</option>
+              <option value="90">آخر 3 أشهر</option>
+            </select>
+          </div>
+
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot blue"></span> إيرادات (د.ج)</span>
+            <span class="legend-item"><span class="legend-dot green dashed"></span> طلبات</span>
+          </div>
+
+          <div class="chart-container">
+            <canvas id="revenue-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ORDERS PAGE -->
+    <div class="page" id="page-orders">
+      <div class="orders-stats-grid">
+        <div class="order-stat-card blue-gradient">
+          <div class="os-icon">💰</div>
+          <div class="os-value" id="total-revenue">0 د.ج</div>
+          <div class="os-label">إجمالي الإيراءات</div>
+        </div>
+        <div class="order-stat-card">
+          <div class="os-icon">✅</div>
+          <div class="os-value">0</div>
+          <div class="os-label">طلبات تم توصيلها</div>
+        </div>
+        <div class="order-stat-card">
+          <div class="os-icon">⏳</div>
+          <div class="os-value">0</div>
+          <div class="os-label">بانتظار التأكيد</div>
+        </div>
+        <div class="order-stat-card dark-gradient">
+          <div class="os-icon">📦</div>
+          <div class="os-value" id="total-orders">0</div>
+          <div class="os-label">إجمالي الطلبات</div>
+        </div>
+      </div>
+
+      <div class="orders-toolbar-full">
+        <div class="order-tabs-full">
+          <button class="otab active">🔔 طلبات جديدة</button>
+          <button class="otab">🚚 متابعة الطلبات</button>
+        </div>
+        <div class="orders-actions-full">
+          <div class="search-bar-full">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="ابحث عن طلب..." id="order-search" />
+          </div>
+          <button class="add-order-btn-full" id="add-order-btn">+ إضافة طلب</button>
+          <button class="export-btn-full" id="export-orders">📊 تصدير البيانات</button>
+        </div>
+      </div>
+
+      <div class="orders-table-full">
+        <div class="table-head">
+          <span>رقم الطلب</span>
+          <span>الزبون / المنتج</span>
+          <span>التاريخ</span>
+          <span>الإجمالي</span>
+          <span>الحالة</span>
+          <span>الإجراءات</span>
+        </div>
+        <div class="table-body" id="orders-table-body">
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>لا توجد طلبات بعد. اربط حساباتك وابدأ البيع!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Order Modal -->
+      <div class="modal-overlay" id="add-order-modal" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>إضافة طلب جديد</h3>
+            <button class="modal-close" data-modal="add-order-modal">✕</button>
+          </div>
+          <form id="add-order-form" class="modal-form">
+            <div class="form-row">
+              <div class="form-col">
+                <label>إسم الزبون</label>
+                <input type="text" id="order-client" placeholder="إسم الزبون الكامل" required />
+              </div>
+              <div class="form-col">
+                <label>المنتج</label>
+                <input type="text" id="order-product" placeholder="إسم المنتج" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-col">
+                <label>الكمية</label>
+                <input type="number" id="order-qty" min="1" value="1" required />
+              </div>
+              <div class="form-col">
+                <label>السعر (د.ج)</label>
+                <input type="number" id="order-price" placeholder="0" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-col">
+                <label>رقم الهاتف</label>
+                <input type="tel" id="order-phone" placeholder="0555..." />
+              </div>
+              <div class="form-col">
+                <label>ولاية الشحن</label>
+                <select id="order-wilaya">
+                  <option value="">اختر الولاية</option>
+                  <option>الجزائر العاصمة</option>
+                  <option>وهران</option>
+                  <option>قسنطينة</option>
+                  <option>عنابة</option>
+                  <option>سطيف</option>
+                  <option>باتنة</option>
+                  <option>بجاية</option>
+                  <option>تلمسان</option>
+                  <option>بسكرة</option>
+                  <option>تيزي وزو</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="modal-cancel-btn" data-modal="add-order-modal">إلغاء</button>
+              <button type="submit" class="modal-submit-btn">إضافة الطلب</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS PAGE -->
+    <div class="page" id="page-products">
+      <div class="products-toolbar">
+        <input type="text" class="products-search" placeholder="🔍 ابحث عن منتج..." id="product-search" />
+        <button class="add-product-btn" id="add-product-btn">+ إضافة منتج</button>
+      </div>
+      <div class="products-grid" id="products-grid">
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <p>لا توجد منتجات بعد. اضغط "+ إضافة منتج" للبدء!</p>
+        </div>
+      </div>
+
+      <!-- Add Product Modal -->
+      <div class="modal-overlay" id="add-product-modal" style="display:none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>إضافة منتج جديد</h3>
+            <button class="modal-close" data-modal="add-product-modal">✕</button>
+          </div>
+          <form id="add-product-form" class="modal-form">
+            <div class="form-row">
+              <div class="form-col">
+                <label>إسم المنتج</label>
+                <input type="text" id="product-name" placeholder="إسم المنتج" required />
+              </div>
+              <div class="form-col">
+                <label>السعر (د.ج)</label>
+                <input type="number" id="product-price" placeholder="0" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-col">
+                <label>المخزون</label>
+                <input type="number" id="product-stock" placeholder="0" />
+              </div>
+              <div class="form-col">
+                <label>الفئة</label>
+                <input type="text" id="product-category" placeholder="مثال: ملابس، إلكترونيات..." />
+              </div>
+            </div>
+            <div class="form-group-full">
+              <label>الوصف</label>
+              <textarea id="product-desc" rows="3" placeholder="وصف المنتج..."></textarea>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="modal-cancel-btn" data-modal="add-product-modal">إلغاء</button>
+              <button type="submit" class="modal-submit-btn">إضافة المنتج</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- INBOX PAGE -->
+    <div class="page" id="page-inbox">
+      <div class="inbox-layout">
+        <div class="inbox-sidebar">
+          <div class="inbox-filters">
+            <button class="inbox-filter active">يحتج إلى مساعدة</button>
+            <button class="inbox-filter">جميع المستخدمين</button>
+          </div>
+          <div class="conversation-list" id="conversation-list">
+            <div class="empty-state small">
+              <p>لا توجد محادثات بعد</p>
+            </div>
+          </div>
+        </div>
+        <div class="inbox-main" id="inbox-main">
+          <div class="inbox-empty">
+            <div class="empty-icon">💬</div>
+            <p>اختر محادثة للبدء</p>
+          </div>
+        </div>
+        <div class="chat-widget-panel" id="chat-widget">
+          <div class="chat-widget-header">
+            <h4>محادثة تجريبية</h4>
+            <p>اختبر كيف يرد فهيم</p>
+          </div>
+          <div class="chat-messages-widget" id="chat-messages-widget">
+            <div class="w-msg w-msg-ai">مرحبا! 👋 أنا فهيم، كيفاش نخدمك اليوم؟</div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="chat-input-widget" placeholder="اكتب رسالة بالدارجة..." />
+            <button id="chat-send-widget">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE PAGE -->
+    <div class="page" id="page-profile">
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="profile-avatar">
+            <div class="avatar-placeholder" id="profile-avatar-text">م</div>
+          </div>
+          <div class="profile-info">
+            <h2 id="profile-name">مستخدم</h2>
+            <p id="profile-email">email@example.com</p>
+            <span class="profile-plan" id="profile-plan">رصيد البداية</span>
+          </div>
+        </div>
+        <div class="profile-stats">
+          <div class="profile-stat">
+            <div class="ps-value" id="ps-points">0</div>
+            <div class="ps-label">نقطة متبقية</div>
+          </div>
+          <div class="profile-stat">
+            <div class="ps-value" id="ps-orders">0</div>
+            <div class="ps-label">طلب مُعالج</div>
+          </div>
+          <div class="profile-stat">
+            <div class="ps-value" id="ps-messages">0</div>
+            <div class="ps-label">رسالة مُستقبلة</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-settings">
+        <div class="settings-section">
+          <h3>إعدادات المتجر</h3>
+          <div class="setting-row">
+            <label>إسم المتجر</label>
+            <input type="text" id="store-name-input" placeholder="إسم متجرك" />
+          </div>
+          <div class="setting-row">
+            <label>رسالة الترحيب</label>
+            <textarea id="welcome-message" rows="3" placeholder="مرحباً بيك! كيفاش نخدمك؟"></textarea>
+          </div>
+          <button class="save-settings-btn" id="save-settings">💾 حفظ الإعدادات</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BILLING PAGE -->
+    <div class="page" id="page-billing">
+      <div class="billing-header">
+        <h2>شحن الرصيد</h2>
+        <p>دفع لمرة واحدة، رصيد نقاط لا تنتهي صلاحيته أبدًا</p>
+        <div class="current-points">
+          <span class="points-icon">🪙</span>
+          <span>رصيدك الحالي: <strong id="billing-points">0</strong> نقطة</span>
+        </div>
+      </div>
+
+      <div class="billing-plans">
+        <div class="billing-plan-card" data-plan="starter" data-points="1000" data-price="3500">
+          <div class="bp-top">
+            <span class="bp-coin">🪙</span>
+            <div class="bp-points">1,000 <small>نقطة</small></div>
+          </div>
+          <div class="bp-name">رصيد البداية</div>
+          <div class="bp-price">3,500 <span>د.ج</span></div>
+          <div class="bp-divider"></div>
+          <div class="bp-taxes">
+            <div>HT: 2,941 د.ج</div>
+            <div>TVA (ضريبة): 559 د.ج</div>
+          </div>
+          <button class="bp-btn">شراء الرصيد</button>
+        </div>
+
+        <div class="billing-plan-card" data-plan="growth" data-points="5000" data-price="8500">
+          <div class="bp-top">
+            <span class="bp-coin">🪙</span>
+            <div class="bp-points">5,000 <small>نقطة</small></div>
+          </div>
+          <div class="bp-name">رصيد النمو</div>
+          <div class="bp-price">8,500 <span>د.ج</span></div>
+          <div class="bp-divider"></div>
+          <div class="bp-taxes">
+            <div>HT: 7,143 د.ج</div>
+            <div>TVA (ضريبة): 1,357 د.ج</div>
+          </div>
+          <button class="bp-btn">شراء الرصيد</button>
+        </div>
+
+        <div class="billing-plan-card" data-plan="business" data-points="10000" data-price="14500">
+          <div class="bp-top">
+            <span class="bp-coin">🪙</span>
+            <div class="bp-points">10,000 <small>نقطة</small></div>
+          </div>
+          <div class="bp-name accent-name">رصيد الأعمال</div>
+          <div class="bp-price">14,500 <span>د.ج</span></div>
+          <div class="bp-divider"></div>
+          <div class="bp-taxes">
+            <div>HT: 12,185 د.ج</div>
+            <div>TVA (ضريبة): 2,315 د.ج</div>
+          </div>
+          <button class="bp-btn">شراء الرصيد</button>
+        </div>
+
+        <div class="billing-plan-card featured-bp" data-plan="enterprise" data-points="25000" data-price="36000">
+          <div class="bp-top">
+            <span class="bp-coin">🪙</span>
+            <div class="bp-points">25,000 <small>نقطة</small></div>
+          </div>
+          <div class="bp-name">رصيد المؤسسات</div>
+          <div class="bp-price">36,000 <span>د.ج</span></div>
+          <div class="bp-divider"></div>
+          <div class="bp-taxes">
+            <div>HT: 30,252 د.ج</div>
+            <div>TVA (ضريبة): 5,748 د.ج</div>
+          </div>
+          <button class="bp-btn featured-bp-btn">شراء الرصيد</button>
+        </div>
+      </div>
+
+      <!-- Payment Modal -->
+      <div class="modal-overlay" id="payment-modal" style="display:none">
+        <div class="modal-card payment-modal-card">
+          <div class="modal-header">
+            <h3>إتمام الدفع</h3>
+            <button class="modal-close" data-modal="payment-modal">✕</button>
+          </div>
+          <div class="payment-summary" id="payment-summary"></div>
+          <div class="payment-simulation">
+            <div class="payment-notice">
+              <span>ℹ️</span>
+              <p>هذا نظام تجريبي. في الإنتاج يتم الدفع عبر بطاقة CIB أو BaridiMob.</p>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="modal-cancel-btn" data-modal="payment-modal">إلغاء</button>
+            <button class="modal-submit-btn" id="confirm-payment">تأكيد الشراء ✅</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Connect Platform Modal -->
+  <div class="modal-overlay" id="connect-modal" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="connect-modal-title">ربط الحساب</h3>
+        <button class="modal-close" data-modal="connect-modal">✕</button>
+      </div>
+      <div class="connect-instructions" id="connect-instructions"></div>
+      <div class="modal-form">
+        <label>اسم مستخدم الحساب</label>
+        <input type="text" id="connect-username" placeholder="@username" />
+        <div class="modal-actions" style="margin-top:20px">
+          <button class="modal-cancel-btn" data-modal="connect-modal">إلغاء</button>
+          <button class="modal-submit-btn" id="do-connect">ربط الحساب ✅</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Facebook JS SDK (Business Login + WhatsApp Embedded Signup) -->
+  <script>
+    const META_APP_ID_FALLBACK = '1267731595570488';
+
+    // Initialise FB SDK only after we have the config from our server
+    function initFBSDK(appId) {
+      window.fbAsyncInit = function () {
+        FB.init({
+          appId: appId,
+          cookie: true,
+          xfbml: true,
+          version: 'v19.0'
+        });
+        console.log('✅ FB SDK initialised with appId:', appId);
+      };
+      (function (d, s, id) {
+        if (d.getElementById(id)) {
+          // SDK already loaded, just re-init
+          if (typeof FB !== 'undefined') {
+            FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v19.0' });
+          }
+          return;
+        }
+        var js = d.createElement(s);
+        js.id = id;
+        js.src = 'https://connect.facebook.net/ar_AR/sdk.js';
+        d.getElementsByTagName(s)[0].parentNode.insertBefore(js, d.getElementsByTagName(s)[0]);
+      }(document, 'script', 'facebook-jssdk'));
+    }
+
+    // Fetch config then init SDK
+    fetch('/api/config/public')
+      .then(r => r.json())
+      .then(cfg => {
+        window.META_APP_ID = cfg.metaAppId || META_APP_ID_FALLBACK;
+        window.META_WABA_CONFIG_ID = cfg.wabaConfigId || '';
+        initFBSDK(window.META_APP_ID);
+      })
+      .catch(() => {
+        // Fallback to hardcoded ID if config fetch fails
+        window.META_APP_ID = META_APP_ID_FALLBACK;
+        initFBSDK(META_APP_ID_FALLBACK);
+      });
+  </script>
+
+  <!-- Page Selector Modal (shown after FB login to pick which page to connect) -->
+  <div class="modal-overlay" id="page-selector-modal" style="display:none">
+    <div class="modal-card" style="max-width:460px">
+      <div class="modal-header">
+        <h3 id="page-selector-title">اختر صفحتك</h3>
+        <button class="modal-close" onclick="document.getElementById('page-selector-modal').style.display='none'">✕</button>
+      </div>
+      <div style="padding:8px 0 4px;color:#64748b;font-size:0.82rem;">اختر الصفحة التجارية التي تريد ربطها بالوكيل الذكي:</div>
+      <div id="page-list" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto"></div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="modal-cancel-btn" onclick="document.getElementById('page-selector-modal').style.display='none'">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
+

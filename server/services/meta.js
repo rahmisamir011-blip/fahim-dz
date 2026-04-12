@@ -1,0 +1,210 @@
+/**
+ * FAHIM DZ — Meta Graph API Service
+ * Handles: Instagram DM, Facebook Messenger, WhatsApp Business API
+ */
+
+const axios = require('axios');
+
+const META_BASE = 'https://graph.facebook.com';
+const WA_VERSION = process.env.WHATSAPP_API_VERSION || 'v19.0';
+
+// ============================================================
+// INSTAGRAM — Direct Messages
+// ============================================================
+
+/**
+ * Send Instagram DM
+ * @param {string} recipientIgId - Instagram scoped user ID
+ * @param {string} text - message text
+ * @param {string} pageToken - page access token
+ */
+async function sendInstagramMessage(recipientIgId, text, pageToken) {
+  try {
+    const res = await axios.post(
+      `${META_BASE}/v19.0/me/messages`,
+      {
+        recipient: { id: recipientIgId },
+        message: { text },
+        messaging_type: 'RESPONSE',
+      },
+      {
+        headers: { Authorization: `Bearer ${pageToken}` },
+      }
+    );
+    return { success: true, messageId: res.data.message_id };
+  } catch (err) {
+    const errData = err.response?.data?.error;
+    console.error('❌ IG send error:', errData || err.message);
+    return { success: false, error: errData?.message || err.message };
+  }
+}
+
+/**
+ * Get Instagram user info (name, profile picture)
+ */
+async function getInstagramUser(igScopedUserId, pageToken) {
+  try {
+    const res = await axios.get(
+      `${META_BASE}/v19.0/${igScopedUserId}`,
+      {
+        params: { fields: 'name,profile_pic', access_token: pageToken }
+      }
+    );
+    return res.data;
+  } catch {
+    return { name: igScopedUserId };
+  }
+}
+
+// ============================================================
+// FACEBOOK MESSENGER
+// ============================================================
+
+/**
+ * Send Facebook Messenger message
+ * @param {string} recipientPsid - Facebook Page Scoped ID
+ * @param {string} text - message text
+ * @param {string} pageToken - page access token
+ */
+async function sendFacebookMessage(recipientPsid, text, pageToken) {
+  try {
+    const res = await axios.post(
+      `${META_BASE}/v19.0/me/messages`,
+      {
+        recipient: { id: recipientPsid },
+        message: { text },
+        messaging_type: 'RESPONSE',
+      },
+      {
+        headers: { Authorization: `Bearer ${pageToken}` },
+      }
+    );
+    return { success: true, messageId: res.data.message_id };
+  } catch (err) {
+    const errData = err.response?.data?.error;
+    console.error('❌ FB send error:', errData || err.message);
+    return { success: false, error: errData?.message || err.message };
+  }
+}
+
+/**
+ * Get Facebook user profile
+ */
+async function getFacebookUser(psid, pageToken) {
+  try {
+    const res = await axios.get(
+      `${META_BASE}/v19.0/${psid}`,
+      {
+        params: { fields: 'first_name,last_name,profile_pic', access_token: pageToken }
+      }
+    );
+    return {
+      name: `${res.data.first_name || ''} ${res.data.last_name || ''}`.trim() || psid,
+      ...res.data
+    };
+  } catch {
+    return { name: psid };
+  }
+}
+
+// ============================================================
+// WHATSAPP BUSINESS API
+// ============================================================
+
+/**
+ * Send WhatsApp text message
+ * @param {string} phoneNumberId - WhatsApp Business Phone Number ID
+ * @param {string} to - recipient phone number (international format, e.g. 213XXXXXXXXX)
+ * @param {string} text - message text
+ * @param {string} token - WhatsApp system user token
+ */
+async function sendWhatsAppMessage(phoneNumberId, to, text, token) {
+  try {
+    const res = await axios.post(
+      `${META_BASE}/${WA_VERSION}/${phoneNumberId}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'text',
+        text: { preview_url: false, body: text },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return { success: true, messageId: res.data.messages?.[0]?.id };
+  } catch (err) {
+    const errData = err.response?.data?.error;
+    console.error('❌ WA send error:', errData || err.message);
+    return { success: false, error: errData?.message || err.message };
+  }
+}
+
+/**
+ * Mark WhatsApp message as read
+ */
+async function markWhatsAppRead(phoneNumberId, messageId, token) {
+  try {
+    await axios.post(
+      `${META_BASE}/${WA_VERSION}/${phoneNumberId}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: messageId,
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+  } catch { /* non-critical */ }
+}
+
+/**
+ * Exchange short-lived token for long-lived (60-day) token
+ */
+async function getLongLivedToken(shortToken) {
+  try {
+    const res = await axios.get(`${META_BASE}/v19.0/oauth/access_token`, {
+      params: {
+        grant_type: 'fb_exchange_token',
+        client_id: process.env.META_APP_ID,
+        client_secret: process.env.META_APP_SECRET,
+        fb_exchange_token: shortToken,
+      }
+    });
+    return res.data;
+  } catch (err) {
+    console.error('Token exchange error:', err.response?.data || err.message);
+    throw err;
+  }
+}
+
+/**
+ * Get all pages for a user token (for FB/IG connection)
+ */
+async function getUserPages(userToken) {
+  try {
+    const res = await axios.get(`${META_BASE}/v19.0/me/accounts`, {
+      params: { access_token: userToken, fields: 'id,name,access_token,instagram_business_account' }
+    });
+    return res.data.data || [];
+  } catch (err) {
+    console.error('Get pages error:', err.response?.data || err.message);
+    return [];
+  }
+}
+
+module.exports = {
+  sendInstagramMessage,
+  sendFacebookMessage,
+  sendWhatsAppMessage,
+  markWhatsAppRead,
+  getInstagramUser,
+  getFacebookUser,
+  getLongLivedToken,
+  getUserPages,
+};

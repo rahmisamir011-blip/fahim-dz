@@ -1,0 +1,33 @@
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ── Environment (NEVER commit this) ───────────────────────────
+.env
+.env.local
+.env.production
+
+# ── Secrets & Keys ────────────────────────────────────────────
+*.pem
+*.key
+serviceAccountKey.json
+firebase-credentials.json
+
+# ── Runtime / Build ───────────────────────────────────────────
+dist/
+build/
+.cache/
+*.log
+logs/
+
+# ── OS / Editor files ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.swp
+*.swo
+
+# ── ngrok (local tunnel binary — no need in repo) ─────────────
+ngrok.exe
+ngrok
