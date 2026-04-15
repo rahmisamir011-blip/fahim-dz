@@ -32,7 +32,7 @@ function initFirebase() {
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId,
-        privateKey: privateKey.replace(/\\n/g, '\n').replace(/\n/g, '\n'),
+        privateKey: privateKey.replace(/\n/g, '\n'),
         clientEmail,
       }),
     });
