@@ -37,6 +37,10 @@ initFirebase();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Trust Render's reverse proxy (REQUIRED for rate-limit + HTTPS) ───
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // ── Security middleware ───────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: false, // Disable for serving HTML files
@@ -45,10 +49,14 @@ app.use(helmet({
 // ── CORS ──────────────────────────────────────────────────────
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? [process.env.FRONTEND_URL]
+    ? [
+        process.env.FRONTEND_URL,
+        'https://fahim-dz.onrender.com',
+      ].filter(Boolean)
     : '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
 
 // ── Rate limiting ─────────────────────────────────────────────
