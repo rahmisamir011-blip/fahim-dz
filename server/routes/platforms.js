@@ -527,4 +527,86 @@ router.delete('/:type', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/debug/fix-ig
+ * One-shot fix: patches IG platform doc + registry to add igAccountId.
+ * Also re-subscribes the IG Business Account page to webhooks.
+ * NO AUTH required — only for admin use.
+ */
+router.get('/debug/fix-ig', async (req, res) => {
+  const IG_ACCOUNT_ID = '17841448764600905';
+  const FB_PAGE_ID    = '586509198429031';
+  const USER_ID       = 'Tc88HuFDlZ9I9Gc9w9nv';
+
+  if (!isFirebaseReady()) return res.status(503).json({ error: 'Firebase not ready' });
+  const db = getDb();
+
+  try {
+    // 1. Read current IG platform doc
+    const igRef = db.collection('users').doc(USER_ID).collection('platforms').doc('ig');
+    const igSnap = await igRef.get();
+    const existingData = igSnap.exists ? igSnap.data() : {};
+
+    // 2. Patch: add igAccountId
+    const updates = { igAccountId: IG_ACCOUNT_ID };
+    // Normalize accessToken field if missing
+    if (!existingData.accessToken && existingData.pageAccessToken) {
+      updates.accessToken = existingData.pageAccessToken;
+    }
+    await igRef.set(updates, { merge: true });
+
+    // 3. Ensure webhook_registry has correct entries
+    await db.collection('webhook_registry').doc(FB_PAGE_ID).set({
+      userId: USER_ID,
+      platform: 'fb',
+      registeredAt: Date.now(),
+    }, { merge: true });
+
+    await db.collection('webhook_registry').doc(IG_ACCOUNT_ID).set({
+      userId: USER_ID,
+      platform: 'ig',
+      fbPageId: FB_PAGE_ID,
+      registeredAt: Date.now(),
+    }, { merge: true });
+
+    // 4. Re-subscribe the FB page to webhook events (including instagram messages)
+    const accessToken = existingData.accessToken || existingData.pageAccessToken || '';
+    let subscribeResult = null;
+    let subscribeError = null;
+    if (accessToken) {
+      try {
+        const subRes = await axios.post(
+          `https://graph.facebook.com/v20.0/${FB_PAGE_ID}/subscribed_apps`,
+          null,
+          { params: {
+            subscribed_fields: 'messages,messaging_postbacks,messaging_optins,message_reads,mention,comments',
+            access_token: accessToken,
+          }}
+        );
+        subscribeResult = subRes.data;
+      } catch (e) {
+        subscribeError = e.response?.data || e.message;
+      }
+    }
+
+    // 5. Read back updated doc
+    const updatedSnap = await igRef.get();
+    const updatedData = updatedSnap.data();
+
+    return res.json({
+      success: true,
+      updated: { igAccountId: updatedData.igAccountId, hasAccessToken: !!updatedData.accessToken, pageId: updatedData.pageId },
+      registry: {
+        fb: { id: FB_PAGE_ID, platform: 'fb', userId: USER_ID },
+        ig: { id: IG_ACCOUNT_ID, platform: 'ig', userId: USER_ID },
+      },
+      subscribeResult,
+      subscribeError,
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: err.message, stack: err.stack?.split('\n').slice(0,3) });
+  }
+});
+
 module.exports = router;

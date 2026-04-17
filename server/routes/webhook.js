@@ -32,12 +32,17 @@ router.post('/', verifyMetaSignature, async (req, res) => {
   const body = req.body;
 
   // LOG EVERY INCOMING WEBHOOK — visible in Render logs
+  const entry0 = body.entry?.[0];
+  const msg0   = entry0?.messaging?.[0];
   console.log('📨 Webhook received:', JSON.stringify({
     object: body.object,
     entryCount: body.entry?.length,
-    entry0id: body.entry?.[0]?.id,
-    hasMessaging: !!(body.entry?.[0]?.messaging?.length),
-    hasChanges: !!(body.entry?.[0]?.changes?.length),
+    entry0id: entry0?.id,
+    sender0id: msg0?.sender?.id,
+    isEcho: msg0?.message?.is_echo,
+    text0: msg0?.message?.text?.substring(0,40),
+    hasMessaging: !!(entry0?.messaging?.length),
+    hasChanges: !!(entry0?.changes?.length),
     timestamp: new Date().toISOString(),
   }));
 
