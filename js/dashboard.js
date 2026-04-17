@@ -244,29 +244,56 @@ function connectWithFacebook(platform) {
     return showConnectionGuide(platform);
   }
 
-  const scopes = platform === 'instagram'
-    ? 'instagram_basic,instagram_manage_messages,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_metadata,business_management'
-    : 'pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,business_management';
+  const requiredScopes = platform === 'instagram'
+    ? ['instagram_basic', 'instagram_manage_messages', 'pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'business_management']
+    : ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'pages_messaging', 'business_management'];
 
+  const scopeStr = requiredScopes.join(',');
   const platformLabel = platform === 'instagram' ? 'انستغرام' : 'فيسبوك ماسنجر';
   Toast.show(`⏳ جارٍ فتح نافذة تسجيل دخول فيسبوك...`, 'info');
 
   FB.login(function (response) {
     console.log('FB.login response:', response);
-    if (response.authResponse) {
-      const accessToken = response.authResponse.accessToken;
-      fetchAndSelectPages(platform, accessToken, platformLabel);
-    } else {
+    if (!response.authResponse) {
       const status = response?.status || 'unknown';
       console.warn('FB login cancelled/failed. Status:', status);
       Toast.show(`❌ تم إلغاء تسجيل الدخول (${status})`, 'error');
+      return;
     }
+
+    // Check which permissions were actually granted
+    const granted = (response.authResponse.grantedScopes || '').split(',');
+    const criticalScope = platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging';
+
+    if (!granted.includes(criticalScope)) {
+      // Critical messaging permission was not granted — force re-request
+      console.warn(`⚠️ Missing critical scope: ${criticalScope}. Granted: ${granted.join(',')}`);
+      Toast.show(`⚠️ يجب منح إذن "${criticalScope}" لاستلام الرسائل. يرجى المحاولة مرة أخرى والموافقة على جميع الأذونات.`, 'warning');
+      
+      // Force re-request with auth_type=rerequest
+      setTimeout(() => {
+        FB.login(function (resp2) {
+          if (resp2.authResponse) {
+            fetchAndSelectPages(platform, resp2.authResponse.accessToken, platformLabel);
+          } else {
+            Toast.show(`❌ لم يتم منح الأذونات المطلوبة. لا يمكن استلام الرسائل بدون هذا الإذن.`, 'error');
+          }
+        }, {
+          scope: scopeStr,
+          return_scopes: true,
+          auth_type: 'rerequest',
+        });
+      }, 1500);
+      return;
+    }
+
+    fetchAndSelectPages(platform, response.authResponse.accessToken, platformLabel);
   }, {
-    scope: scopes,
+    scope: scopeStr,
     return_scopes: true,
-    // Note: do NOT use auth_type:'rerequest' on first connection — it triggers a confusing "reconnect?" dialog
   });
 }
+
 
 // After login → fetch the client's pages and show a picker
 async function fetchAndSelectPages(platform, userAccessToken, platformLabel) {
