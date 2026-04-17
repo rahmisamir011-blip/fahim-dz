@@ -318,9 +318,9 @@ router.get('/', requireAuth, async (req, res) => {
 
     const platforms = snap.docs.map(d => {
       const data = d.data();
-      // Never expose access tokens to frontend
+      // Never expose access tokens to frontend, but include hasToken flag
       const { accessToken, ...safeData } = data;
-      return { type: d.id, ...safeData, connected: true };
+      return { type: d.id, ...safeData, connected: true, hasToken: !!accessToken };
     });
 
     return res.json({ platforms });
