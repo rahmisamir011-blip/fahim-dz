@@ -51,12 +51,12 @@ async function generateReply(userMessage, history = [], products = []) {
     };
   }
 
-  // Try models in order — fall back if quota is exhausted
+  // Try models in order — fall back if quota or model not found
   const MODEL_FALLBACK_CHAIN = [
     'gemini-2.0-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-8b-latest',
-    'gemini-pro',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
   ];
 
   const geminiHistory = history
@@ -95,12 +95,13 @@ async function generateReply(userMessage, history = [], products = []) {
 
     } catch (err) {
       const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
-      if (isQuota) {
-        console.warn(`⚠️ Gemini quota exhausted for model ${modelName}, trying next...`);
+      const isNotFound = err.message?.includes('404') || err.message?.includes('not found') || err.message?.includes('NOT_FOUND');
+      if (isQuota || isNotFound) {
+        console.warn(`⚠️ Gemini ${isQuota ? 'quota' : 'not found'} for ${modelName}, trying next...`);
         continue; // try next model
       }
-      console.error(`Gemini error with model ${modelName}:`, err.message);
-      break; // Non-quota error, stop trying
+      console.error(`❌ Gemini error with model ${modelName}:`, err.message);
+      continue; // try next model anyway
     }
   }
 
