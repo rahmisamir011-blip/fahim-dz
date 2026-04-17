@@ -129,12 +129,38 @@ router.post('/connect', requireAuth, async (req, res) => {
       await db.collection('webhook_registry').doc(igId).set({ userId, platform: 'ig', registeredAt: Date.now() });
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // CRITICAL: Subscribe the Facebook Page to webhook events.
+    // Without this call, Meta NEVER sends messages to our webhook URL.
+    // This is the equivalent of clicking "Subscribe" in the Meta App Dashboard.
+    // ─────────────────────────────────────────────────────────────────────
+    const subscribeFields = platform === 'instagram'
+      ? 'messages,messaging_postbacks,messaging_optins,message_reads,mention,comments'
+      : 'messages,messaging_postbacks,messaging_optins,message_reads,feed';
+
+    try {
+      const subRes = await axios.post(
+        `https://graph.facebook.com/${META_API_VERSION}/${pageId}/subscribed_apps`,
+        null,
+        {
+          params: {
+            subscribed_fields: subscribeFields,
+            access_token: pageToken,
+          },
+        }
+      );
+      console.log(`✅ Page ${pageId} subscribed to webhook events:`, subRes.data);
+    } catch (subErr) {
+      // Log but don't fail — Firestore is saved, just the live subscription failed
+      console.error(`⚠️ Failed to subscribe page ${pageId} to webhooks:`, subErr.response?.data || subErr.message);
+    }
+
     // Update user's connectedPlatforms array
     await db.collection('users').doc(userId).update({
       connectedPlatforms: admin.firestore.FieldValue.arrayUnion(platformKey),
     });
 
-    return res.json({ success: true, platform: platformKey, pageName });
+    return res.json({ success: true, platform: platformKey, pageName, subscribed: true });
 
   } catch (err) {
     console.error('Platform connect error:', err.message);
