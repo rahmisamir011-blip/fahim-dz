@@ -143,7 +143,7 @@ router.post('/connect', requireAuth, async (req, res) => {
     // This is the equivalent of clicking "Subscribe" in the Meta App Dashboard.
     // ─────────────────────────────────────────────────────────────────────
     const subscribeFields = platform === 'instagram'
-      ? 'messages,messaging_postbacks,messaging_optins,message_reads,mention,comments'
+      ? 'messages,messaging_postbacks,messaging_optins,message_reads,mention'
       : 'messages,messaging_postbacks,messaging_optins,message_reads,feed';
 
     try {
@@ -579,7 +579,7 @@ router.get('/debug/fix-ig', async (req, res) => {
           `https://graph.facebook.com/v20.0/${FB_PAGE_ID}/subscribed_apps`,
           null,
           { params: {
-            subscribed_fields: 'messages,messaging_postbacks,messaging_optins,message_reads,mention,comments',
+            subscribed_fields: 'messages,messaging_postbacks,messaging_optins,message_reads,mention',
             access_token: accessToken,
           }}
         );

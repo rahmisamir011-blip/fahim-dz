@@ -84,31 +84,33 @@ router.post('/', verifyMetaSignature, async (req, res) => {
 
 // ── INSTAGRAM Handler ────────────────────────────────────────
 async function handleInstagramEntry(entry) {
-  const pageId = entry.id;  // This is the FB Page ID used as entry key
+  // entry.id for instagram object can be the IG Business Account ID (17841448764600905)
+  // or sometimes the FB Page ID (586509198429031). We look up both via webhook_registry.
+  const entryId = entry.id;
   const messaging = entry.messaging || [];
 
-  // Find which tenant owns this IG page
-  const registry = await findTenantByPageId(pageId);
+  if (messaging.length === 0) return;
+
+  console.log(`🔍 IG entry.id=${entryId} messaging=${messaging.length}`);
+
+  // Find tenant via webhook_registry (works for both IG ID and FB Page ID)
+  const registry = await findTenantByPageId(entryId);
   if (!registry) {
-    // Also try the registry by the IG account ID directly
-    const registryByIg = await findTenantByPageId(pageId);
-    if (!registryByIg) {
-      console.warn(`⚠️ No tenant found for IG page: ${pageId}`);
-      return;
-    }
+    console.warn(`⚠️ No tenant found for IG entry id: ${entryId}`);
+    return;
   }
-  const tenantRegistry = registry;
 
   const db = getDb();
   const platformSnap = await db
-    .collection('users').doc(tenantRegistry.userId)
+    .collection('users').doc(registry.userId)
     .collection('platforms').doc('ig')
     .get();
 
   if (!platformSnap.exists) {
-    console.warn(`⚠️ No IG platform doc for user ${tenantRegistry.userId}`);
+    console.warn(`⚠️ No IG platform doc for user ${registry.userId}`);
     return;
   }
+
   const rawPlatform = platformSnap.data();
   const platform = {
     type: 'ig',
@@ -116,39 +118,45 @@ async function handleInstagramEntry(entry) {
     accessToken: rawPlatform.accessToken || rawPlatform.pageAccessToken || rawPlatform.token || '',
   };
 
-  // The IG Business Account ID — needed to filter out bot's own sent messages
-  const igAccountId = rawPlatform.igAccountId || rawPlatform.instagram_business_account_id || '';
+  // IDs that belong to the bot itself — skip any message FROM these
+  const botIds = new Set([
+    entryId,
+    rawPlatform.igAccountId || '',
+    rawPlatform.pageId || '',
+  ].filter(Boolean));
 
   for (const msg of messaging) {
-    // ── Skip echo / bot's own messages ──────────────────────
+    const senderId = msg.sender?.id;
+
+    // ── Skip echo / messages sent by the bot itself ─────────
     if (msg.message?.is_echo) {
-      console.log(`🔕 Skipping echo message from ${msg.sender?.id}`);
+      console.log(`🔕 Skipping is_echo from ${senderId}`);
       continue;
     }
-    // Skip if sender is the FB page itself
-    if (msg.sender?.id === pageId) continue;
-    // Skip if sender is the IG Business Account (bot replying to itself)
-    if (igAccountId && msg.sender?.id === igAccountId) {
-      console.log(`🔕 Skipping IG bot self-message from ${msg.sender?.id}`);
+    if (botIds.has(senderId)) {
+      console.log(`🔕 Skipping bot self-message from ${senderId}`);
+      continue;
+    }
+    if (!msg.message?.text) {
+      console.log(`🔕 Skipping non-text IG message type from ${senderId}`);
       continue;
     }
 
-    if (!msg.message?.text) continue; // Skip non-text (images, stickers)
-
-    console.log(`📩 IG message from ${msg.sender?.id}: "${msg.message.text?.substring(0,40)}"`);
+    console.log(`📩 IG message from ${senderId}: "${msg.message.text?.substring(0, 50)}"`);
 
     const event = {
       platform: 'ig',
-      senderId: msg.sender.id,
+      senderId,
       senderName: null,
       messageText: msg.message.text,
       messageId: msg.message.mid,
       timestamp: msg.timestamp,
     };
 
-    await processMessage(event, tenantRegistry.userId, platform);
+    await processMessage(event, registry.userId, platform);
   }
 }
+
 
 
 // ── FACEBOOK Handler ─────────────────────────────────────────
