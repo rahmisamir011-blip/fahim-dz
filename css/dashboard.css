@@ -425,6 +425,24 @@ input, select, textarea { font-family: inherit; }
 .connect-btn:hover { opacity: 0.85; transform: translateY(-1px); }
 .connect-btn.connected-state { background: rgba(10, 158, 143, 0.1) !important; color: var(--secondary) !important; }
 
+.disconnect-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.08);
+  color: #ef4444;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: inherit;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.disconnect-btn:hover { background: rgba(239,68,68,0.15); border-color: #ef4444; }
+
+
 /* Chart Card */
 .chart-card {
   background: white;

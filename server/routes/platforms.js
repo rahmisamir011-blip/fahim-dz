@@ -177,6 +177,56 @@ router.post('/connect', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/platforms/disconnect
+ * Removes a platform connection from Firestore so the user can reconnect fresh.
+ */
+router.post('/disconnect', requireAuth, async (req, res) => {
+  const { platform } = req.body; // 'ig', 'fb', or 'wa'
+  if (!platform) return res.status(400).json({ error: 'platform required (ig/fb/wa)' });
+
+  const userId = req.tenant.userId;
+  if (!isFirebaseReady()) return res.status(503).json({ error: 'Firebase غير متوفر' });
+
+  const db = getDb();
+  try {
+    // Load existing platform data to find the pageId for registry cleanup
+    const platformRef = db.collection('users').doc(userId).collection('platforms').doc(platform);
+    const platformSnap = await platformRef.get();
+
+    if (platformSnap.exists) {
+      const pData = platformSnap.data();
+      const pageId = pData.pageId;
+      const igId   = pData.igAccountId;
+
+      // Delete from webhook_registry
+      if (pageId) {
+        await db.collection('webhook_registry').doc(pageId).delete();
+        console.log(`🗑️ Registry deleted: ${pageId}`);
+      }
+      if (igId) {
+        await db.collection('webhook_registry').doc(igId).delete();
+        console.log(`🗑️ Registry deleted: ${igId}`);
+      }
+
+      // Delete the platform doc
+      await platformRef.delete();
+    }
+
+    // Remove from connectedPlatforms array
+    await db.collection('users').doc(userId).update({
+      connectedPlatforms: admin.firestore.FieldValue.arrayRemove(platform),
+    });
+
+    console.log(`✅ Disconnected platform ${platform} for user ${userId}`);
+    return res.json({ success: true, platform });
+
+  } catch (err) {
+    console.error('Platform disconnect error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/platforms/whatsapp-signup
  * Handles WhatsApp Embedded Signup completion.
  * Can receive either:

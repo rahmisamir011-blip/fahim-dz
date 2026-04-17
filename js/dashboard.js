@@ -183,26 +183,20 @@ async function loadPlatforms() {
     const data = await apiFetch('/api/platforms');
     if (!data?.platforms) return;
 
-    const connectBtns = {
-      ig: document.getElementById('connect-ig'),
-      fb: document.getElementById('connect-fb'),
-      wa: document.getElementById('connect-wa'),
-    };
+    const typeToFull = { ig: 'instagram', fb: 'facebook', wa: 'whatsapp' };
 
     data.platforms.forEach(p => {
-      const btn = connectBtns[p.type];
-      if (btn) {
-        btn.textContent = '✅ مربوط';
-        btn.classList.add('connected-state');
-      }
-      const handleEl = document.getElementById(`${p.type}-handle`);
-      if (handleEl) handleEl.textContent = p.username || p.pageName || p.displayPhone || 'مربوط';
+      const platform = typeToFull[p.type] || p.type;
+      const displayName = p.username || p.pageName || p.displayPhone || 'مربوط';
+      // Reuse updatePlatformUI to set connected state + show disconnect btn
+      updatePlatformUI(platform, { pageName: displayName });
     });
 
   } catch (err) {
     console.error('Platforms load error:', err);
   }
 }
+
 
 // ── CONNECT PLATFORM — SaaS Multi-Tenant (Facebook Business Login) ────────
 /**
@@ -454,12 +448,14 @@ async function saveWhatsAppConnection(phoneNumberId, wabaId) {
 // ── Update UI after successful connection ─────────────────────────────────
 function updatePlatformUI(platform, data) {
   const handleMap = { instagram: 'ig-handle', facebook: 'fb-handle', whatsapp: 'wa-handle' };
-  const btnMap = { instagram: 'connect-ig', facebook: 'connect-fb', whatsapp: 'connect-wa' };
-  const rowMap = { instagram: 'row-ig', facebook: 'row-fb', whatsapp: 'row-wa' };
+  const btnMap    = { instagram: 'connect-ig', facebook: 'connect-fb', whatsapp: 'connect-wa' };
+  const discMap   = { instagram: 'disconnect-ig', facebook: 'disconnect-fb', whatsapp: 'disconnect-wa' };
+  const rowMap    = { instagram: 'row-ig', facebook: 'row-fb', whatsapp: 'row-wa' };
 
-  const handle = document.getElementById(handleMap[platform]);
-  const btn = document.getElementById(btnMap[platform]);
-  const row = document.getElementById(rowMap[platform]);
+  const handle  = document.getElementById(handleMap[platform]);
+  const btn     = document.getElementById(btnMap[platform]);
+  const discBtn = document.getElementById(discMap[platform]);
+  const row     = document.getElementById(rowMap[platform]);
 
   const displayText = data.igUsername ? `@${data.igUsername}` : data.pageName || data.displayPhone || 'مربوط ✓';
 
@@ -471,8 +467,53 @@ function updatePlatformUI(platform, data) {
     btn.style.border = '1px solid #a5d6a7';
     btn.disabled = true;
   }
+  if (discBtn) discBtn.style.display = 'inline-flex';
   if (row) row.style.background = 'linear-gradient(to left, #f0fdf4, #fff)';
 }
+
+// ── Disconnect a platform ──────────────────────────────────────────────────
+window.disconnectPlatform = async function(platformKey) {
+  const labelMap = { ig: 'انستغرام', fb: 'فيسبوك', wa: 'واتساب' };
+  const fullMap  = { ig: 'instagram', fb: 'facebook', wa: 'whatsapp' };
+  const label = labelMap[platformKey] || platformKey;
+
+  if (!confirm(`هل تريد قطع اتصال ${label}؟`)) return;
+
+  Toast.show(`⏳ جارٍ قطع اتصال ${label}...`, 'info');
+
+  try {
+    const res = await apiFetch('/api/platforms/disconnect', {
+      method: 'POST',
+      body: JSON.stringify({ platform: platformKey }),
+    });
+
+    if (res?.success) {
+      const platform = fullMap[platformKey];
+      const handleMap = { instagram: 'ig-handle', facebook: 'fb-handle', whatsapp: 'wa-handle' };
+      const btnMap    = { instagram: 'connect-ig', facebook: 'connect-fb', whatsapp: 'connect-wa' };
+      const discMap   = { instagram: 'disconnect-ig', facebook: 'disconnect-fb', whatsapp: 'disconnect-wa' };
+      const rowMap    = { instagram: 'row-ig', facebook: 'row-fb', whatsapp: 'row-wa' };
+
+      const handle  = document.getElementById(handleMap[platform]);
+      const btn     = document.getElementById(btnMap[platform]);
+      const discBtn = document.getElementById(discMap[platform]);
+      const row     = document.getElementById(rowMap[platform]);
+
+      if (handle) handle.textContent = 'غير مربوط';
+      if (btn) { btn.textContent = 'ربط'; btn.style.background = ''; btn.style.color = ''; btn.style.border = ''; btn.disabled = false; }
+      if (discBtn) discBtn.style.display = 'none';
+      if (row) row.style.background = '';
+
+      Toast.show(`✅ تم قطع اتصال ${label}`, 'success');
+    } else {
+      Toast.show(res?.error || '❌ فشل قطع الاتصال', 'error');
+    }
+  } catch (err) {
+    Toast.show('❌ خطأ في الاتصال بالخادم', 'error');
+    console.error('Disconnect error:', err);
+  }
+};
+
 
 // ── Fallback: show setup guide if Meta App not configured ─────────────────
 function showConnectionGuide(platform) {
