@@ -51,43 +51,64 @@ async function generateReply(userMessage, history = [], products = []) {
     };
   }
 
-  try {
-    const ai = getGenAI();
-    const model = ai.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: buildSystemPrompt(products),
-    });
+  // Try models in order — fall back if quota is exhausted
+  const MODEL_FALLBACK_CHAIN = [
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+  ];
 
-    // Convert stored history format to Gemini format
-    const geminiHistory = history
-      .slice(-10) // last 10 messages
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }));
+  const geminiHistory = history
+    .slice(-10)
+    .map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
 
-    const chat = model.startChat({ history: geminiHistory });
-    const result = await chat.sendMessage(userMessage);
-    const rawReply = result.response.text();
+  const systemPrompt = buildSystemPrompt(products);
 
-    // Extract order data if present
-    let orderData = null;
-    const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
-    if (orderMatch) {
-      try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+  for (const modelName of MODEL_FALLBACK_CHAIN) {
+    try {
+      const ai = getGenAI();
+      const model = ai.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
+
+      const chat = model.startChat({ history: geminiHistory });
+      const result = await chat.sendMessage(userMessage);
+      const rawReply = result.response.text();
+
+      // Extract order data if present
+      let orderData = null;
+      const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
+      if (orderMatch) {
+        try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+      }
+
+      const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
+      if (modelName !== 'gemini-2.0-flash') {
+        console.log(`⚠️ Used fallback AI model: ${modelName}`);
+      }
+      return { reply, orderData };
+
+    } catch (err) {
+      const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
+      if (isQuota) {
+        console.warn(`⚠️ Gemini quota exhausted for model ${modelName}, trying next...`);
+        continue; // try next model
+      }
+      console.error(`Gemini error with model ${modelName}:`, err.message);
+      break; // Non-quota error, stop trying
     }
-
-    const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
-    return { reply, orderData };
-
-  } catch (err) {
-    console.error('Gemini error:', err.message);
-    return {
-      reply: 'عفواً، حدث خطأ تقني. حاول مرة أخرى! 🙏',
-      orderData: null
-    };
   }
+
+  return {
+    reply: 'مرحباً! فهيم جاهز لخدمتك 😊 حاول مرة أخرى لو سمحت.',
+    orderData: null
+  };
 }
+
 
 function buildSystemPrompt(products) {
   let prompt = SYSTEM_PROMPT;

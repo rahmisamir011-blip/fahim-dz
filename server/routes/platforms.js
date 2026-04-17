@@ -117,16 +117,24 @@ router.post('/connect', requireAuth, async (req, res) => {
     // Save under tenant's platforms sub-collection
     await db.collection('users').doc(userId).collection('platforms').doc(platformKey).set(platformData);
 
-    // Webhook registry: pageId → userId (for routing incoming messages)
+    // Webhook registry: pageId (Facebook Page ID) → userId
+    // IMPORTANT: For Instagram connections, the Facebook Page ID should be registered
+    // as platform 'fb' because when Meta sends a message via Messenger on the Page,
+    // the entry.id will be the FB Page ID. The IG Business Account ID is always 'ig'.
     await db.collection('webhook_registry').doc(pageId).set({
       userId,
-      platform: platformKey,
+      platform: platform === 'instagram' ? 'fb' : platformKey, // FB page ID → always 'fb'
       registeredAt: Date.now(),
     });
 
-    // If Instagram, also register igAccountId
+    // If Instagram, also register the IG Business Account ID (this is what Instagram DMs use)
     if (igId) {
-      await db.collection('webhook_registry').doc(igId).set({ userId, platform: 'ig', registeredAt: Date.now() });
+      await db.collection('webhook_registry').doc(igId).set({
+        userId,
+        platform: 'ig',
+        fbPageId: pageId, // cross-reference for sending replies
+        registeredAt: Date.now(),
+      });
     }
 
     // ─────────────────────────────────────────────────────────────────────
