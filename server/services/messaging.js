@@ -17,22 +17,27 @@ async function processMessage(event, tenantId, platform) {
   const db = getDb();
   const { senderId, senderName, messageText, platform: platformType, messageId } = event;
 
+  console.log(`\n📩 processMessage START: platform=${platformType} tenantId=${tenantId} sender=${senderId} text="${messageText?.substring(0,30)}"`);
+
   if (!messageText || messageText.trim() === '') return;
 
   try {
-    // ── 1. Check tenant points balance ──────────────────────
+    // ── 1. Check tenant credits/points balance ───────────────
     const userRef = db.collection('users').doc(tenantId);
     const userSnap = await userRef.get();
 
     if (!userSnap.exists) {
-      console.warn(`⚠️ Tenant ${tenantId} not found`);
+      console.warn(`⚠️ Tenant ${tenantId} not found in Firestore`);
       return;
     }
 
     const userData = userSnap.data();
+    // Support both 'points' and 'credits' field names
+    const balance = userData.points ?? userData.credits ?? 0;
+    console.log(`💰 Tenant ${tenantId} balance: ${balance} points`);
 
-    if ((userData.points || 0) <= 0) {
-      console.log(`💸 Tenant ${tenantId} has 0 points — skipping reply`);
+    if (balance <= 0) {
+      console.warn(`💸 Tenant ${tenantId} has 0 balance — skipping reply`);
       return;
     }
 
@@ -62,14 +67,17 @@ async function processMessage(event, tenantId, platform) {
     let sendResult;
 
     if (platformType === 'ig') {
+      console.log(`📤 Sending IG reply to ${senderId} token=${platform.accessToken?.substring(0,20)}...`);
       sendResult = await metaService.sendInstagramMessage(
         senderId, reply, platform.accessToken
       );
     } else if (platformType === 'fb') {
+      console.log(`📤 Sending FB reply to ${senderId}`);
       sendResult = await metaService.sendFacebookMessage(
         senderId, reply, platform.accessToken
       );
     } else if (platformType === 'wa') {
+      console.log(`📤 Sending WA reply to ${senderId}`);
       sendResult = await metaService.sendWhatsAppMessage(
         platform.phoneNumberId, senderId, reply, platform.accessToken
       );
@@ -81,7 +89,7 @@ async function processMessage(event, tenantId, platform) {
       }
     }
 
-    console.log(`✅ [${platformType.toUpperCase()}] Reply sent to ${senderId}: "${reply.substring(0, 40)}..."`);
+    console.log(`✅ [${platformType.toUpperCase()}] Reply sent to ${senderId} result:`, JSON.stringify(sendResult || {}).substring(0,120));
 
     // ── 6. Save conversation to Firestore ──────────────────
     const now = Date.now();

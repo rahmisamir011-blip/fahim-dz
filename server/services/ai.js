@@ -54,8 +54,9 @@ async function generateReply(userMessage, history = [], products = []) {
   // Try models in order — fall back if quota is exhausted
   const MODEL_FALLBACK_CHAIN = [
     'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-8b-latest',
+    'gemini-pro',
   ];
 
   const geminiHistory = history
