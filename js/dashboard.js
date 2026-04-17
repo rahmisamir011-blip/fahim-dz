@@ -96,10 +96,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadBillingPage();
   initChart();
 
-  // Logout
-  document.getElementById('logout-btn')?.addEventListener('click', () => {
-    if (confirm('هل تريد الخروج من الحساب؟')) Auth.logout();
-  });
+  // Logout — no confirm() dialog (works in all contexts)
+  document.getElementById('logout-btn')?.addEventListener('click', Auth.logout.bind(Auth));
 });
 
 // ── Navigation ─────────────────────────────────────────────────
@@ -255,52 +253,46 @@ function connectWithFacebook(platform) {
   }
 
   const requiredScopes = platform === 'instagram'
-    ? ['instagram_basic', 'instagram_manage_messages', 'pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'business_management']
-    : ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'pages_messaging', 'business_management'];
+    ? 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata,business_management'
+    : 'pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,business_management';
 
-  const scopeStr = requiredScopes.join(',');
   const platformLabel = platform === 'instagram' ? 'انستغرام' : 'فيسبوك ماسنجر';
   Toast.show(`⏳ جارٍ فتح نافذة تسجيل دخول فيسبوك...`, 'info');
 
+  function handleAuthResponse(accessToken) {
+    fetchAndSelectPages(platform, accessToken, platformLabel);
+  }
+
   FB.login(function (response) {
-    console.log('FB.login response:', response);
-    if (!response.authResponse) {
-      const status = response?.status || 'unknown';
-      console.warn('FB login cancelled/failed. Status:', status);
-      Toast.show(`❌ تم إلغاء تسجيل الدخول (${status})`, 'error');
+    console.log('FB.login response:', JSON.stringify(response));
+
+    if (response?.authResponse?.accessToken) {
+      // Direct success
+      handleAuthResponse(response.authResponse.accessToken);
       return;
     }
 
-    // Check which permissions were actually granted
-    const granted = (response.authResponse.grantedScopes || '').split(',');
-    const criticalScope = platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging';
-
-    if (!granted.includes(criticalScope)) {
-      // Critical messaging permission was not granted — force re-request
-      console.warn(`⚠️ Missing critical scope: ${criticalScope}. Granted: ${granted.join(',')}`);
-      Toast.show(`⚠️ يجب منح إذن "${criticalScope}" لاستلام الرسائل. يرجى المحاولة مرة أخرى والموافقة على جميع الأذونات.`, 'warning');
-      
-      // Force re-request with auth_type=rerequest
-      setTimeout(() => {
-        FB.login(function (resp2) {
-          if (resp2.authResponse) {
-            fetchAndSelectPages(platform, resp2.authResponse.accessToken, platformLabel);
-          } else {
-            Toast.show(`❌ لم يتم منح الأذونات المطلوبة. لا يمكن استلام الرسائل بدون هذا الإذن.`, 'error');
-          }
-        }, {
-          scope: scopeStr,
-          return_scopes: true,
-          auth_type: 'rerequest',
-        });
-      }, 1500);
+    if (response?.status === 'connected') {
+      // SDK already authenticated — use existing token
+      handleAuthResponse(response.authResponse.accessToken);
       return;
     }
 
-    fetchAndSelectPages(platform, response.authResponse.accessToken, platformLabel);
+    // Popup closed or returned without auth — check current login status
+    console.warn('FB.login no authResponse, checking getLoginStatus...');
+    FB.getLoginStatus(function (statusRes) {
+      console.log('FB.getLoginStatus:', JSON.stringify(statusRes));
+      if (statusRes?.authResponse?.accessToken) {
+        Toast.show('✅ تم التحقق من تسجيل الدخول!', 'success');
+        handleAuthResponse(statusRes.authResponse.accessToken);
+      } else {
+        Toast.show('❌ لم يتم منح الصلاحية. تأكد من النقر على متابعة وقبول جميع الأذونات.', 'error');
+      }
+    }, true); // true = force fresh check
   }, {
-    scope: scopeStr,
+    scope: requiredScopes,
     return_scopes: true,
+    auth_type: 'rerequest',
   });
 }
 
@@ -331,15 +323,24 @@ async function fetchAndSelectPages(platform, userAccessToken, platformLabel) {
 }
 
 // Show the page selector modal
+let _pendingPages = [];         // in-memory page list (safe for tokens)
+let _pendingPlatform = '';
+let _pendingLabel = '';
+
 function showPageSelectorModal(platform, platformLabel, pages, userLongToken) {
   const modal = document.getElementById('page-selector-modal');
   const title = document.getElementById('page-selector-title');
   const list = document.getElementById('page-list');
 
+  // Store in memory — avoids token corruption via HTML attributes
+  _pendingPages = pages;
+  _pendingPlatform = platform;
+  _pendingLabel = platformLabel;
+
   if (title) title.textContent = `اختر ${platformLabel === 'انستغرام' ? 'حساب الانستغرام' : 'الصفحة'} المراد ربطها`;
 
-  list.innerHTML = pages.map(page => `
-    <button onclick="connectPage('${platform}','${page.id}','${encodeURIComponent(page.name)}','${page.access_token}','${page.ig_id || ''}')"
+  list.innerHTML = pages.map((page, index) => `
+    <button onclick="connectPageByIndex(${index})"
       style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1.5px solid #e2e8f0;
              border-radius:12px;background:#fff;cursor:pointer;text-align:right;width:100%;
              transition:all .2s;font-family:Cairo,sans-serif;font-size:14px"
@@ -350,19 +351,26 @@ function showPageSelectorModal(platform, platformLabel, pages, userLongToken) {
         ${platform === 'instagram' ? '📸' : '📘'}
       </div>
       <div>
-        <div style="font-weight:700;color:#1a1a2e">${decodeURIComponent(page.name)}</div>
+        <div style="font-weight:700;color:#1a1a2e">${page.name}</div>
         <div style="font-size:0.72rem;color:#64748b">معرّف: ${page.id}${page.ig_username ? ` · @${page.ig_username}` : ''}</div>
       </div>
     </button>
   `).join('');
 
-  modal.style.display = 'flex';
+  if (modal) modal.style.display = 'flex';
 }
 
-// Called when user picks a specific page
-window.connectPage = async function (platform, pageId, pageNameEncoded, pageToken, igId) {
+// Called when user picks a page by index (safe — reads token from memory)
+window.connectPageByIndex = async function(index) {
+  const page = _pendingPages[index];
+  const platform = _pendingPlatform;
+  if (!page) return;
+
   document.getElementById('page-selector-modal').style.display = 'none';
-  const pageName = decodeURIComponent(pageNameEncoded);
+  const pageName = page.name;
+  const pageId   = page.id;
+  const pageToken = page.access_token;
+  const igId     = page.ig_id || '';
 
   Toast.show(`⏳ جارٍ ربط ${pageName}...`, 'info');
 
@@ -374,13 +382,33 @@ window.connectPage = async function (platform, pageId, pageNameEncoded, pageToke
 
     if (res?.success) {
       Toast.show(`✅ تم ربط ${pageName} بنجاح! الوكيل جاهز لاستقبال الرسائل.`, 'success');
-      updatePlatformUI(platform, { pageName, igId });
+      updatePlatformUI(platform, { pageName, igUsername: res.igUsername || '' });
     } else {
       Toast.show(res?.error || `❌ فشل الربط`, 'error');
     }
   } catch (err) {
-    Toast.show('❌ خطأ في الاتصال بالخادم', 'error');
+    console.error('connectPage error:', err);
+    Toast.show('❌ خطأ في الاتصال بالخادم: ' + err.message, 'error');
   }
+};
+
+// Legacy — keep in case any HTML still references it
+window.connectPage = async function(platform, pageId, pageNameEncoded, pageToken, igId) {
+  document.getElementById('page-selector-modal').style.display = 'none';
+  const pageName = decodeURIComponent(pageNameEncoded);
+  Toast.show(`⏳ جارٍ ربط ${pageName}...`, 'info');
+  try {
+    const res = await apiFetch('/api/platforms/connect', {
+      method: 'POST',
+      body: JSON.stringify({ platform, pageId, pageName, pageToken, igId }),
+    });
+    if (res?.success) {
+      Toast.show(`✅ تم ربط ${pageName}!`, 'success');
+      updatePlatformUI(platform, { pageName });
+    } else {
+      Toast.show(res?.error || `❌ فشل الربط`, 'error');
+    }
+  } catch (err) { Toast.show('❌ خطأ', 'error'); }
 };
 
 // ── WhatsApp Embedded Signup ───────────────────────────────────────────────
@@ -463,6 +491,10 @@ async function saveWhatsAppConnection(phoneNumberId, wabaId) {
 
 // ── Update UI after successful connection ─────────────────────────────────
 function updatePlatformUI(platform, data) {
+  // Normalize: accept both 'instagram'/'ig', 'facebook'/'fb', 'whatsapp'/'wa'
+  const normMap = { ig: 'instagram', fb: 'facebook', wa: 'whatsapp' };
+  platform = normMap[platform] || platform;
+
   const handleMap = { instagram: 'ig-handle', facebook: 'fb-handle', whatsapp: 'wa-handle' };
   const btnMap    = { instagram: 'connect-ig', facebook: 'connect-fb', whatsapp: 'connect-wa' };
   const discMap   = { instagram: 'disconnect-ig', facebook: 'disconnect-fb', whatsapp: 'disconnect-wa' };
