@@ -14,28 +14,50 @@ const WA_VERSION = process.env.WHATSAPP_API_VERSION || 'v19.0';
 
 /**
  * Send Instagram DM
- * @param {string} recipientIgId - Instagram scoped user ID
+ * @param {string} recipientIgId - Instagram scoped user ID (sender's IG ID)
  * @param {string} text - message text
  * @param {string} pageToken - page access token
+ * @param {string} igAccountId - IG Business Account ID (17841448764600905)
  */
-async function sendInstagramMessage(recipientIgId, text, pageToken) {
+async function sendInstagramMessage(recipientIgId, text, pageToken, igAccountId) {
+  // Instagram DMs require: POST /{ig-business-account-id}/messages
+  // NOT /me/messages (that's for Facebook Messenger)
+  const igId = igAccountId || 'me';
   try {
     const res = await axios.post(
-      `${META_BASE}/v19.0/me/messages`,
+      `${META_BASE}/v21.0/${igId}/messages`,
       {
         recipient: { id: recipientIgId },
         message: { text },
         messaging_type: 'RESPONSE',
       },
       {
-        headers: { Authorization: `Bearer ${pageToken}` },
+        params: { access_token: pageToken },
       }
     );
+    console.log(`✅ IG send success: msgId=${res.data.message_id}`);
     return { success: true, messageId: res.data.message_id };
   } catch (err) {
     const errData = err.response?.data?.error;
-    console.error('❌ IG send error:', errData || err.message);
-    return { success: false, error: errData?.message || err.message };
+    console.error('❌ IG send error:', JSON.stringify(errData || err.message));
+    // Try fallback: /me/messages
+    try {
+      const res2 = await axios.post(
+        `${META_BASE}/v21.0/me/messages`,
+        {
+          recipient: { id: recipientIgId },
+          message: { text },
+          messaging_type: 'RESPONSE',
+        },
+        { params: { access_token: pageToken } }
+      );
+      console.log(`✅ IG send fallback success: msgId=${res2.data.message_id}`);
+      return { success: true, messageId: res2.data.message_id };
+    } catch (err2) {
+      const e2 = err2.response?.data?.error;
+      console.error('❌ IG send fallback error:', JSON.stringify(e2 || err2.message));
+      return { success: false, error: errData?.message || err.message };
+    }
   }
 }
 

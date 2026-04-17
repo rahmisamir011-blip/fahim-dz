@@ -482,35 +482,60 @@ window.disconnectPlatform = async function(platformKey) {
   Toast.show(`⏳ جارٍ قطع اتصال ${label}...`, 'info');
 
   try {
-    const res = await apiFetch('/api/platforms/disconnect', {
+    const token = localStorage.getItem('fahim_token');
+    if (!token) {
+      Toast.show('❌ يجب تسجيل الدخول أولاً', 'error');
+      return;
+    }
+
+    const rawRes = await fetch(`${API_BASE}/api/platforms/disconnect`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
       body: JSON.stringify({ platform: platformKey }),
     });
 
+    console.log('Disconnect response status:', rawRes.status);
+
+    if (rawRes.status === 401) {
+      localStorage.removeItem('fahim_token');
+      localStorage.removeItem('fahim_user');
+      Toast.show('❌ انتهت الجلسة، يرجى تسجيل الدخول مجدداً', 'error');
+      setTimeout(() => { window.location.href = 'authentification.html'; }, 1500);
+      return;
+    }
+
+    const res = await rawRes.json();
+    console.log('Disconnect response:', res);
+
     if (res?.success) {
       const platform = fullMap[platformKey];
-      const handleMap = { instagram: 'ig-handle', facebook: 'fb-handle', whatsapp: 'wa-handle' };
-      const btnMap    = { instagram: 'connect-ig', facebook: 'connect-fb', whatsapp: 'connect-wa' };
-      const discMap   = { instagram: 'disconnect-ig', facebook: 'disconnect-fb', whatsapp: 'disconnect-wa' };
-      const rowMap    = { instagram: 'row-ig', facebook: 'row-fb', whatsapp: 'row-wa' };
 
-      const handle  = document.getElementById(handleMap[platform]);
-      const btn     = document.getElementById(btnMap[platform]);
-      const discBtn = document.getElementById(discMap[platform]);
-      const row     = document.getElementById(rowMap[platform]);
+      const handleEl = document.getElementById(`${platformKey}-handle`);
+      const connectBtn = document.getElementById(`connect-${platformKey}`);
+      const discBtn = document.getElementById(`disconnect-${platformKey}`);
+      const row = document.getElementById(`row-${platformKey}`);
 
-      if (handle) handle.textContent = 'غير مربوط';
-      if (btn) { btn.textContent = 'ربط'; btn.style.background = ''; btn.style.color = ''; btn.style.border = ''; btn.disabled = false; }
+      if (handleEl) handleEl.textContent = 'غير مربوط';
+      if (connectBtn) {
+        connectBtn.textContent = 'ربط';
+        connectBtn.style.cssText = '';
+        connectBtn.disabled = false;
+      }
       if (discBtn) discBtn.style.display = 'none';
       if (row) row.style.background = '';
 
       Toast.show(`✅ تم قطع اتصال ${label}`, 'success');
     } else {
-      Toast.show(res?.error || '❌ فشل قطع الاتصال', 'error');
+      const errMsg = res?.error || 'فشل قطع الاتصال';
+      console.error('Disconnect failed:', errMsg);
+      Toast.show(`❌ ${errMsg}`, 'error');
     }
   } catch (err) {
-    Toast.show('❌ خطأ في الاتصال بالخادم', 'error');
-    console.error('Disconnect error:', err);
+    console.error('Disconnect network error:', err);
+    Toast.show('❌ خطأ في الاتصال بالخادم: ' + err.message, 'error');
   }
 };
 

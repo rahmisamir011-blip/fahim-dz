@@ -67,9 +67,10 @@ async function processMessage(event, tenantId, platform) {
     let sendResult;
 
     if (platformType === 'ig') {
-      console.log(`📤 Sending IG reply to ${senderId} token=${platform.accessToken?.substring(0,20)}...`);
+      const igAccountId = platform.igAccountId || platform.pageId || '';
+      console.log(`📤 Sending IG reply to ${senderId} igAccountId=${igAccountId} token=${platform.accessToken?.substring(0,20)}...`);
       sendResult = await metaService.sendInstagramMessage(
-        senderId, reply, platform.accessToken
+        senderId, reply, platform.accessToken, igAccountId
       );
     } else if (platformType === 'fb') {
       console.log(`📤 Sending FB reply to ${senderId}`);

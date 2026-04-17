@@ -231,6 +231,34 @@ app.post('/api/debug/simulate-message', async (req, res) => {
 });
 
 
+
+
+// ── Debug: Test sending a direct IG reply ───────────────────────
+// Usage: GET /api/debug/test-ig-send?recipientId=SENDER_IG_ID
+app.get('/api/debug/test-ig-send', async (req, res) => {
+  const { recipientId } = req.query;
+  if (!recipientId) {
+    return res.json({ error: 'Pass ?recipientId=SENDER_IG_ID in the URL' });
+  }
+  try {
+    const { getDb, isFirebaseReady } = require('./config/firebase');
+    if (!isFirebaseReady()) return res.json({ error: 'Firebase not ready' });
+    const db = getDb();
+    const platformSnap = await db.collection('users').doc('Tc88HuFDlZ9I9Gc9w9nv').collection('platforms').doc('ig').get();
+    if (!platformSnap.exists) return res.json({ error: 'No IG platform doc found' });
+    const igData = platformSnap.data();
+    const pageToken = igData.accessToken || igData.pageAccessToken || '';
+    const igAccountId = igData.igAccountId || '';
+    const metaService = require('./services/meta');
+    const result = await metaService.sendInstagramMessage(
+      recipientId, 'مرحباً! هذا اختبار من روبوت فاهيم DZ 🤖', pageToken, igAccountId
+    );
+    res.json({ result, igAccountId, hasToken: !!pageToken, tokenPreview: pageToken.substring(0, 20) + '...' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Serve frontend for all HTML routes ────────────────────────
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'index.html'));
