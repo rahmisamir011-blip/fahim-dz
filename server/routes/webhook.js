@@ -79,35 +79,58 @@ router.post('/', verifyMetaSignature, async (req, res) => {
 
 // ── INSTAGRAM Handler ────────────────────────────────────────
 async function handleInstagramEntry(entry) {
-  const pageId = entry.id;
+  const pageId = entry.id;  // This is the FB Page ID used as entry key
   const messaging = entry.messaging || [];
 
   // Find which tenant owns this IG page
   const registry = await findTenantByPageId(pageId);
   if (!registry) {
-    console.warn(`⚠️ No tenant found for IG page: ${pageId}`);
-    return;
+    // Also try the registry by the IG account ID directly
+    const registryByIg = await findTenantByPageId(pageId);
+    if (!registryByIg) {
+      console.warn(`⚠️ No tenant found for IG page: ${pageId}`);
+      return;
+    }
   }
+  const tenantRegistry = registry;
 
   const db = getDb();
   const platformSnap = await db
-    .collection('users').doc(registry.userId)
+    .collection('users').doc(tenantRegistry.userId)
     .collection('platforms').doc('ig')
     .get();
 
-  if (!platformSnap.exists) return;
+  if (!platformSnap.exists) {
+    console.warn(`⚠️ No IG platform doc for user ${tenantRegistry.userId}`);
+    return;
+  }
   const rawPlatform = platformSnap.data();
-  // Normalize token field — old connections used 'pageAccessToken', new ones use 'accessToken'
   const platform = {
     type: 'ig',
     ...rawPlatform,
     accessToken: rawPlatform.accessToken || rawPlatform.pageAccessToken || rawPlatform.token || '',
   };
 
+  // The IG Business Account ID — needed to filter out bot's own sent messages
+  const igAccountId = rawPlatform.igAccountId || rawPlatform.instagram_business_account_id || '';
+
   for (const msg of messaging) {
-    // Ignore messages sent BY the page (echo)
+    // ── Skip echo / bot's own messages ──────────────────────
+    if (msg.message?.is_echo) {
+      console.log(`🔕 Skipping echo message from ${msg.sender?.id}`);
+      continue;
+    }
+    // Skip if sender is the FB page itself
     if (msg.sender?.id === pageId) continue;
+    // Skip if sender is the IG Business Account (bot replying to itself)
+    if (igAccountId && msg.sender?.id === igAccountId) {
+      console.log(`🔕 Skipping IG bot self-message from ${msg.sender?.id}`);
+      continue;
+    }
+
     if (!msg.message?.text) continue; // Skip non-text (images, stickers)
+
+    console.log(`📩 IG message from ${msg.sender?.id}: "${msg.message.text?.substring(0,40)}"`);
 
     const event = {
       platform: 'ig',
@@ -118,7 +141,7 @@ async function handleInstagramEntry(entry) {
       timestamp: msg.timestamp,
     };
 
-    await processMessage(event, registry.userId, platform);
+    await processMessage(event, tenantRegistry.userId, platform);
   }
 }
 
