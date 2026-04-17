@@ -106,13 +106,128 @@ app.get('/api/config/public', (req, res) => {
 
 // ── Health Check ──────────────────────────────────────────────
 app.get('/health', (req, res) => {
+  const { isFirebaseReady } = require('./config/firebase');
   res.json({
     status: 'ok',
     service: 'FAHIM DZ API',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + 's',
+    firebase: isFirebaseReady() ? 'connected' : 'DEMO mode',
+    gemini: process.env.GEMINI_API_KEY ? 'configured' : 'MISSING',
+    meta: process.env.META_APP_ID ? 'configured' : 'MISSING',
+    webhookUrl: `${process.env.FRONTEND_URL}/webhook/meta`,
   });
+});
+
+// ── Debug: Check & Force Webhook Subscription ─────────────────
+// Usage: GET /api/debug/subscribe?pageId=PAGE_ID&token=PAGE_TOKEN
+app.get('/api/debug/subscribe', async (req, res) => {
+  const { pageId, token } = req.query;
+  if (!pageId || !token) {
+    return res.status(400).json({ error: 'pageId and token are required' });
+  }
+  const axios = require('axios');
+  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v19.0';
+  const results = {};
+
+  // 1. Check current subscriptions
+  try {
+    const checkRes = await axios.get(
+      `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
+      { params: { access_token: token } }
+    );
+    results.currentSubscriptions = checkRes.data;
+  } catch (e) {
+    results.checkError = e.response?.data || e.message;
+  }
+
+  // 2. Force subscribe
+  try {
+    const subRes = await axios.post(
+      `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
+      null,
+      { params: {
+        subscribed_fields: 'messages,messaging_postbacks,messaging_optins,message_reads',
+        access_token: token,
+      }}
+    );
+    results.subscribeResult = subRes.data;
+  } catch (e) {
+    results.subscribeError = e.response?.data || e.message;
+  }
+
+  // 3. Verify after subscribe
+  try {
+    const verifyRes = await axios.get(
+      `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
+      { params: { access_token: token } }
+    );
+    results.afterSubscription = verifyRes.data;
+  } catch (e) {
+    results.verifyError = e.response?.data || e.message;
+  }
+
+  res.json(results);
+});
+
+// ── Debug: Show Firestore webhook registry ─────────────────────
+// Usage: GET /api/debug/registry
+app.get('/api/debug/registry', async (req, res) => {
+  try {
+    const { getDb, isFirebaseReady } = require('./config/firebase');
+    if (!isFirebaseReady()) return res.json({ error: 'Firebase not ready' });
+    const db = getDb();
+    const snap = await db.collection('webhook_registry').limit(20).get();
+    const entries = [];
+    snap.forEach(doc => entries.push({ id: doc.id, ...doc.data() }));
+    res.json({ count: entries.length, entries });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Debug: Simulate incoming webhook (for testing without Meta) ─
+app.post('/api/debug/simulate-message', async (req, res) => {
+  const { pageId, senderId, text } = req.body;
+  if (!pageId || !senderId || !text) {
+    return res.status(400).json({ error: 'pageId, senderId, text required' });
+  }
+  // Simulate what Meta would send for an Instagram DM
+  const fakeBody = {
+    object: 'instagram',
+    entry: [{
+      id: pageId,
+      time: Date.now(),
+      messaging: [{
+        sender: { id: senderId },
+        recipient: { id: pageId },
+        timestamp: Date.now(),
+        message: { mid: `debug_${Date.now()}`, text },
+      }],
+    }],
+  };
+  // Internally process it
+  try {
+    const { processMessage, findTenantByPageId } = require('./services/messaging');
+    const registry = await findTenantByPageId(pageId);
+    if (!registry) return res.json({ error: `No tenant found for pageId: ${pageId}` });
+    const { getDb } = require('./config/firebase');
+    const db = getDb();
+    const platformSnap = await db.collection('users').doc(registry.userId).collection('platforms').doc(registry.platform).get();
+    if (!platformSnap.exists) return res.json({ error: 'Platform not found in Firestore' });
+    const rawPlatform = platformSnap.data();
+    const platform = {
+      type: registry.platform,
+      ...rawPlatform,
+      accessToken: rawPlatform.accessToken || rawPlatform.pageAccessToken || '',
+    };
+    const event = { platform: registry.platform, senderId, messageText: text, messageId: `debug_${Date.now()}`, timestamp: Date.now() };
+    await processMessage(event, registry.userId, platform);
+    res.json({ success: true, registry, platformKey: registry.platform });
+  } catch (e) {
+    res.status(500).json({ error: e.message, stack: e.stack });
+  }
 });
 
 

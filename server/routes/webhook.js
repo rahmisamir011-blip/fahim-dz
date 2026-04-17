@@ -31,10 +31,21 @@ router.get('/', (req, res) => {
 router.post('/', verifyMetaSignature, async (req, res) => {
   const body = req.body;
 
+  // LOG EVERY INCOMING WEBHOOK — visible in Render logs
+  console.log('📨 Webhook received:', JSON.stringify({
+    object: body.object,
+    entryCount: body.entry?.length,
+    entry0id: body.entry?.[0]?.id,
+    hasMessaging: !!(body.entry?.[0]?.messaging?.length),
+    hasChanges: !!(body.entry?.[0]?.changes?.length),
+    timestamp: new Date().toISOString(),
+  }));
+
   // Always respond 200 immediately (Meta requires < 20s)
   res.status(200).json({ status: 'EVENT_RECEIVED' });
 
   if (body.object !== 'instagram' && body.object !== 'page' && body.object !== 'whatsapp_business_account') {
+    console.log('⚠️ Unknown webhook object type:', body.object);
     return;
   }
 
@@ -63,6 +74,7 @@ router.post('/', verifyMetaSignature, async (req, res) => {
     console.error('Webhook processing error:', err.message);
   }
 });
+
 
 
 // ── INSTAGRAM Handler ────────────────────────────────────────
