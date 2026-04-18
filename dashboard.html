@@ -665,6 +665,211 @@
   <div class="toast-container" id="toast-container"></div>
 
   <script src="js/dashboard.js?v=2"></script>
+
+  <!-- PATCH: Override broken functions inline (cannot be cached) v20260418 -->
+  <script>
+  // Wait for dashboard.js to initialize
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(patchConnectFlow, 500);
+  });
+
+  function patchConnectFlow() {
+    // ── Fix logout button ────────────────────────────────────────
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.onclick = function(e) {
+        e.stopImmediatePropagation();
+        if (typeof Auth !== 'undefined') Auth.logout();
+        else { localStorage.clear(); sessionStorage.clear(); window.location.href = '/authentification.html'; }
+      };
+    }
+
+    // ── Override connect buttons ─────────────────────────────────
+    const igBtn  = document.getElementById('connect-ig');
+    const fbBtn  = document.getElementById('connect-fb');
+    const igNew  = document.getElementById('reconnect-ig');
+    const fbNew  = document.getElementById('reconnect-fb');
+
+    function attachConnectHandler(btn, platform) {
+      if (!btn) return;
+      btn.addEventListener('click', function(e) {
+        e.stopImmediatePropagation();
+        patchedConnect(platform);
+      }, true); // capture phase — fires before any other handler
+    }
+
+    attachConnectHandler(igBtn,  'instagram');
+    attachConnectHandler(fbBtn,  'facebook');
+    attachConnectHandler(igNew,  'instagram');
+    attachConnectHandler(fbNew,  'facebook');
+
+    console.log('✅ PATCH v20260418 applied — new connect flow active');
+  }
+
+  // ── Patched connect function ────────────────────────────────────
+  function patchedConnect(platform) {
+    if (typeof FB === 'undefined') {
+      showToast('❌ Facebook SDK لم يُحمَّل بعد. انتظر ثانية وحاول مجدداً.', 'error');
+      return;
+    }
+    var label = platform === 'instagram' ? 'انستغرام' : 'فيسبوك ماسنجر';
+    showToast('⏳ جارٍ التحقق من حالة فيسبوك...', 'info');
+
+    // Step 1: Try existing session first — no popup needed if already logged in
+    FB.getLoginStatus(function(s) {
+      console.log('[PATCH] getLoginStatus:', JSON.stringify(s));
+      if (s && s.authResponse && s.authResponse.accessToken) {
+        showToast('⏳ جارٍ تحميل صفحاتك...', 'info');
+        fetchPagesAndConnect(platform, label, s.authResponse.accessToken);
+        return;
+      }
+
+      // Step 2: Need to do login — show popup with basic scopes
+      showToast('⏳ جارٍ فتح نافذة تسجيل الدخول...', 'info');
+      var scopes = platform === 'instagram'
+        ? 'instagram_basic,pages_show_list,pages_read_engagement,pages_manage_metadata,business_management'
+        : 'pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,business_management';
+
+      FB.login(function(r) {
+        console.log('[PATCH] FB.login response:', JSON.stringify(r));
+        var token = r && r.authResponse && r.authResponse.accessToken;
+        if (token) {
+          fetchPagesAndConnect(platform, label, token);
+          return;
+        }
+        // Step 3: Popup closed without token — check status one final time
+        FB.getLoginStatus(function(s2) {
+          console.log('[PATCH] Final getLoginStatus:', JSON.stringify(s2));
+          var tok2 = s2 && s2.authResponse && s2.authResponse.accessToken;
+          if (tok2) {
+            fetchPagesAndConnect(platform, label, tok2);
+          } else {
+            showToast('❌ لم يتم تسجيل الدخول. أغلق النافذة المنبثقة وحاول مجدداً.', 'error');
+          }
+        }, true);
+      }, { scope: scopes });
+    }, true);
+  }
+
+  async function fetchPagesAndConnect(platform, label, userToken) {
+    showToast('⏳ جارٍ تحميل الصفحات...', 'info');
+    try {
+      var authToken = localStorage.getItem('authToken') || localStorage.getItem('token') || sessionStorage.getItem('authToken');
+      var resp = await fetch('/api/platforms/exchange-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
+        body: JSON.stringify({ userAccessToken: userToken, platform: platform })
+      });
+      var data = await resp.json();
+      console.log('[PATCH] exchange-token response:', JSON.stringify(data));
+
+      if (!resp.ok || data.error) {
+        showToast('❌ خطأ: ' + (data.error || resp.status), 'error');
+        return;
+      }
+      if (!data.pages || data.pages.length === 0) {
+        showToast('⚠️ لم يتم العثور على صفحات. تأكد من ربط صفحة فيسبوك بحسابك.', 'warning');
+        return;
+      }
+
+      // Show page selector
+      showPatchedPageModal(platform, label, data.pages, data.longLivedToken);
+    } catch(err) {
+      console.error('[PATCH] fetchPages error:', err);
+      showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+    }
+  }
+
+  var _patchPages = [], _patchPlatform = '';
+
+  function showPatchedPageModal(platform, label, pages, token) {
+    _patchPages = pages;
+    _patchPlatform = platform;
+
+    var modal = document.getElementById('page-selector-modal');
+    var title = document.getElementById('page-selector-title');
+    var list  = document.getElementById('page-list');
+
+    if (title) title.textContent = 'اختر ' + (platform === 'instagram' ? 'حساب الانستغرام' : 'الصفحة') + ' المراد ربطها';
+
+    if (list) {
+      list.innerHTML = pages.map(function(p, i) {
+        return '<button onclick="patchConnectPage(' + i + ')" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1.5px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;text-align:right;width:100%;font-family:Cairo,sans-serif;font-size:14px;margin-bottom:6px">'
+          + '<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1e4d8c,#0ea5e9);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;flex-shrink:0">'
+          + (platform === 'instagram' ? '📸' : '📘') + '</div>'
+          + '<div><div style="font-weight:700;color:#1a1a2e">' + p.name + '</div>'
+          + '<div style="font-size:0.72rem;color:#64748b">معرّف: ' + p.id + (p.ig_username ? ' · @' + p.ig_username : '') + '</div></div>'
+          + '</button>';
+      }).join('');
+    }
+
+    if (modal) modal.style.display = 'flex';
+  }
+
+  window.patchConnectPage = async function(index) {
+    var page = _patchPages[index];
+    var platform = _patchPlatform;
+    if (!page) return;
+
+    document.getElementById('page-selector-modal').style.display = 'none';
+    showToast('⏳ جارٍ ربط ' + page.name + '...', 'info');
+
+    try {
+      var authToken = localStorage.getItem('authToken') || localStorage.getItem('token') || sessionStorage.getItem('authToken');
+      var resp = await fetch('/api/platforms/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
+        body: JSON.stringify({
+          platform: platform,
+          pageId: page.id,
+          pageName: page.name,
+          pageToken: page.access_token,
+          igId: page.ig_id || ''
+        })
+      });
+      var data = await resp.json();
+      console.log('[PATCH] connect response:', JSON.stringify(data));
+      if (data.success) {
+        showToast('✅ تم ربط ' + page.name + ' بنجاح! الوكيل جاهز.', 'success');
+        // Update UI
+        var igHandle = document.getElementById('ig-handle');
+        var fbHandle = document.getElementById('fb-handle');
+        var connectBtn = document.getElementById(platform === 'instagram' ? 'connect-ig' : 'connect-fb');
+        var discBtn = document.getElementById(platform === 'instagram' ? 'disconnect-ig' : 'disconnect-fb');
+        var handle = platform === 'instagram' ? igHandle : fbHandle;
+        if (handle) handle.textContent = page.ig_username ? '@' + page.ig_username : page.name;
+        if (connectBtn) { connectBtn.textContent = '✅ مربوط'; connectBtn.disabled = true; connectBtn.style.background = '#e8f5e9'; connectBtn.style.color = '#2e7d32'; }
+        if (discBtn) discBtn.style.display = 'inline-flex';
+      } else {
+        showToast('❌ ' + (data.error || 'فشل الربط'), 'error');
+      }
+    } catch(err) {
+      showToast('❌ خطأ في الاتصال: ' + err.message, 'error');
+    }
+  };
+
+  function showToast(msg, type) {
+    // Use existing Toast if available, otherwise create one
+    if (typeof Toast !== 'undefined' && Toast.show) {
+      Toast.show(msg, type);
+      return;
+    }
+    var container = document.getElementById('toast-container');
+    if (!container) return;
+    var t = document.createElement('div');
+    t.className = 'toast toast-' + type;
+    t.textContent = msg;
+    t.style.cssText = 'padding:12px 18px;border-radius:10px;margin-bottom:8px;font-family:Cairo,sans-serif;font-size:14px;direction:rtl;background:' + (type === 'error' ? '#fee2e2' : type === 'success' ? '#d1fae5' : '#fef3c7') + ';color:#1a1a2e;box-shadow:0 4px 12px rgba(0,0,0,0.15)';
+    container.appendChild(t);
+    setTimeout(function() { t.remove(); }, 5000);
+  }
+  </script>
 </body>
 </html>
 
