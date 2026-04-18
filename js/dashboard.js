@@ -252,49 +252,57 @@ function connectWithFacebook(platform) {
     return showConnectionGuide(platform);
   }
 
+  // Basic scopes — do NOT include instagram_manage_messages here
+  // (it requires App Review approval; adding it blocks the whole auth flow)
+  const baseScopes = 'pages_show_list,pages_read_engagement,pages_manage_metadata,business_management';
   const requiredScopes = platform === 'instagram'
-    ? 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_manage_metadata,business_management'
-    : 'pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,business_management';
+    ? `instagram_basic,${baseScopes}`
+    : `${baseScopes},pages_messaging`;
 
   const platformLabel = platform === 'instagram' ? 'انستغرام' : 'فيسبوك ماسنجر';
-  Toast.show(`⏳ جارٍ فتح نافذة تسجيل دخول فيسبوك...`, 'info');
 
-  function handleAuthResponse(accessToken) {
-    fetchAndSelectPages(platform, accessToken, platformLabel);
-  }
+  Toast.show('⏳ جارٍ التحقق من حالة الاتصال...', 'info');
 
-  FB.login(function (response) {
-    console.log('FB.login response:', JSON.stringify(response));
+  // ── Step 1: Check existing session first (no popup needed if already logged in)
+  FB.getLoginStatus(function(statusCheck) {
+    console.log('[connect] Initial getLoginStatus:', JSON.stringify(statusCheck));
 
-    if (response?.authResponse?.accessToken) {
-      // Direct success
-      handleAuthResponse(response.authResponse.accessToken);
+    if (statusCheck && statusCheck.authResponse && statusCheck.authResponse.accessToken) {
+      // Already connected — skip popup, go straight to pages
+      Toast.show('⏳ جارٍ تحميل صفحاتك...', 'info');
+      fetchAndSelectPages(platform, statusCheck.authResponse.accessToken, platformLabel);
       return;
     }
 
-    if (response?.status === 'connected') {
-      // SDK already authenticated — use existing token
-      handleAuthResponse(response.authResponse.accessToken);
-      return;
-    }
+    // ── Step 2: Not connected — open login popup (no auth_type rerequest!)
+    Toast.show('⏳ جارٍ فتح نافذة تسجيل الدخول...', 'info');
+    FB.login(function(response) {
+      console.log('[connect] FB.login response:', JSON.stringify(response));
 
-    // Popup closed or returned without auth — check current login status
-    console.warn('FB.login no authResponse, checking getLoginStatus...');
-    FB.getLoginStatus(function (statusRes) {
-      console.log('FB.getLoginStatus:', JSON.stringify(statusRes));
-      if (statusRes?.authResponse?.accessToken) {
-        Toast.show('✅ تم التحقق من تسجيل الدخول!', 'success');
-        handleAuthResponse(statusRes.authResponse.accessToken);
-      } else {
-        Toast.show('❌ لم يتم منح الصلاحية. تأكد من النقر على متابعة وقبول جميع الأذونات.', 'error');
+      if (response && response.authResponse && response.authResponse.accessToken) {
+        fetchAndSelectPages(platform, response.authResponse.accessToken, platformLabel);
+        return;
       }
-    }, true); // true = force fresh check
-  }, {
-    scope: requiredScopes,
-    return_scopes: true,
-    auth_type: 'rerequest',
-  });
+
+      // ── Step 3: Popup closed without token — last chance check
+      console.warn('[connect] Popup returned null, trying getLoginStatus fallback...');
+      FB.getLoginStatus(function(fallback) {
+        console.log('[connect] Fallback getLoginStatus:', JSON.stringify(fallback));
+        if (fallback && fallback.authResponse && fallback.authResponse.accessToken) {
+          Toast.show('✅ تم التحقق من الجلسة.', 'success');
+          fetchAndSelectPages(platform, fallback.authResponse.accessToken, platformLabel);
+        } else {
+          Toast.show('❌ لم يتم تسجيل الدخول. أغلق النافذة المنبثقة وحاول مجدداً.', 'error');
+        }
+      }, true); // force fresh check
+    }, {
+      scope: requiredScopes,
+      return_scopes: true,
+      // NO auth_type: 'rerequest' — this causes authResponse:null on already-authed apps
+    });
+  }, true); // true = force fresh status (bypass cache)
 }
+
 
 
 // After login → fetch the client's pages and show a picker
