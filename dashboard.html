@@ -664,7 +664,9 @@
   <!-- Notification Toast -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="js/app.js"></script>
+  <script src="js/dashboard.js"></script>
+  <!-- fix.js is served by Express (not static files) — always up to date -->
+  <script src="/js/fix.js"></script>
 
   <!-- PATCH: Override broken functions inline (cannot be cached) v20260418 -->
   <script>
