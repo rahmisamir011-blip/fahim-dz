@@ -85,6 +85,24 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Serve static frontend files ───────────────────────────────
+// JS/CSS: no-store so browser always fetches fresh version after deploy
+app.use('/js', express.static(path.join(__dirname, '..', 'js'), {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+  },
+}));
+app.use('/css', express.static(path.join(__dirname, '..', 'css'), {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+  },
+}));
+// Everything else (assets, etc.) can cache normally
 app.use(express.static(path.join(__dirname, '..')));
 
 // ── API Routes ────────────────────────────────────────────────
@@ -259,26 +277,40 @@ app.get('/api/debug/test-ig-send', async (req, res) => {
   }
 });
 
-// ── Serve frontend for all HTML routes ────────────────────────
+// ── Serve frontend for all HTML routes (no-cache) ─────────────
+const NO_CACHE = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Pragma': 'no-cache',
+};
+
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'index.html'));
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
 app.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'dashboard.html'));
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'dashboard.html'));
+});
+
+app.get('/dashboard.html', (req, res) => {
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'dashboard.html'));
 });
 
 app.get('/auth', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'authentification.html'));
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'authentification.html'));
+});
+
+app.get('/authentification.html', (req, res) => {
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'authentification.html'));
 });
 
 app.get('/privacy', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'privacy.html'));
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'privacy.html'));
 });
 
 app.get('/privacy.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'privacy.html'));
+  res.set(NO_CACHE).sendFile(path.join(__dirname, '..', 'privacy.html'));
 });
+
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => {
