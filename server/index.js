@@ -2,6 +2,7 @@
  * ╔════════════════════════════════════════════════════════╗
  * ║         FAHIM DZ — Backend Server                     ║
  * ║  AI Sales Agent for Instagram, Facebook & WhatsApp    ║
+ * ║  Deploy: 2026-04-18T13:51 — fix.js + connect patch   ║
  * ╚════════════════════════════════════════════════════════╝
  *
  * Start: node server/index.js
@@ -283,7 +284,8 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'FAHIM DZ API',
-    version: '1.0.0',
+    version: '2.0.0',   // Updated: fix.js route + connect flow patch
+    deploy: '2026-04-18T13:51',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + 's',
     firebase: isFirebaseReady() ? 'connected' : 'DEMO mode',
