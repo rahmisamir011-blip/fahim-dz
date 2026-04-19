@@ -1,8 +1,8 @@
-/**
+﻿/**
  * ╔════════════════════════════════════════════════════════╗
  * ║         FAHIM DZ — Backend Server                     ║
  * ║  AI Sales Agent for Instagram, Facebook & WhatsApp    ║
- * ║  Deploy: 2026-04-18T13:51 — fix.js + connect patch   ║
+ * ║  Deploy: 2026-04-19T21:24 — server-side OAuth popup  ║
  * ╚════════════════════════════════════════════════════════╝
  *
  * Start: node server/index.js
@@ -85,171 +85,15 @@ app.use('/webhook/meta', webhookRoutes);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── Inline JS fix route (bypasses static file cache) ─────────
-// This route is embedded in server code so it always reflects the latest deploy.
-// It overrides the broken connectWithFacebook in the old cached dashboard.js.
-app.get('/js/fix.js', (req, res) => {
-  res.set('Content-Type', 'application/javascript; charset=utf-8');
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.send(`
-/* FAHIM FIX v20260418 — served by Express (never cached) */
-(function() {
-  'use strict';
+// ── JS fix route — server-side OAuth popup approach ─────────
+// Extracted to routes/fix.js for cleaner code. Fixes authResponse:null
+// issue with Meta Business Login by using /api/oauth/connect/:platform
+app.use('/js/fix.js', require('./routes/fix'));
 
-  // ── 1. Override connectWithFacebook with working version ────
-  window._origConnect = window.connectWithFacebook;
-
-  window.connectWithFacebook = function(platform) {
-    if (typeof FB === 'undefined') {
-      _showToast('❌ Facebook SDK لم يُحمَّل. انتظر ثانية وأعد المحاولة.', 'error');
-      return;
-    }
-    var baseScopes = 'pages_show_list,pages_read_engagement,pages_manage_metadata,business_management';
-    var scopes = platform === 'instagram'
-      ? 'instagram_basic,' + baseScopes
-      : baseScopes + ',pages_messaging';
-
-    _showToast('⏳ جارٍ التحقق من حالة الاتصال...', 'info');
-
-    // Step 1: Check existing session first (avoids unnecessary popup)
-    FB.getLoginStatus(function(st) {
-      console.log('[FIX] getLoginStatus:', JSON.stringify(st));
-      if (st && st.authResponse && st.authResponse.accessToken) {
-        _showToast('⏳ جارٍ تحميل صفحاتك...', 'info');
-        _doPageFetch(platform, st.authResponse.accessToken);
-        return;
-      }
-
-      // Step 2: Open login popup (no auth_type:rerequest — causes null on already-authed apps)
-      _showToast('⏳ جارٍ فتح نافذة تسجيل الدخول...', 'info');
-      FB.login(function(r) {
-        console.log('[FIX] FB.login:', JSON.stringify(r));
-        if (r && r.authResponse && r.authResponse.accessToken) {
-          _doPageFetch(platform, r.authResponse.accessToken);
-          return;
-        }
-
-        // Step 3: Popup closed — final fallback
-        FB.getLoginStatus(function(st2) {
-          console.log('[FIX] fallback getLoginStatus:', JSON.stringify(st2));
-          if (st2 && st2.authResponse && st2.authResponse.accessToken) {
-            _doPageFetch(platform, st2.authResponse.accessToken);
-          } else {
-            _showToast('❌ لم يتم تسجيل الدخول. حاول مرة أخرى.', 'error');
-          }
-        }, true);
-      }, { scope: scopes, return_scopes: true }); // No auth_type!
-    }, true);
-  };
-
-  async function _doPageFetch(platform, token) {
-    _showToast('⏳ جارٍ تحميل الصفحات...', 'info');
-    try {
-      var authToken = localStorage.getItem('fahim_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
-      var r = await fetch('/api/platforms/exchange-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-        body: JSON.stringify({ userAccessToken: token, platform: platform })
-      });
-      var d = await r.json();
-      console.log('[FIX] exchange-token:', JSON.stringify(d));
-      if (!r.ok || d.error) { _showToast('❌ ' + (d.error || r.status), 'error'); return; }
-      if (!d.pages || !d.pages.length) { _showToast('⚠️ لا توجد صفحات مربوطة بحسابك.', 'warning'); return; }
-      _showModal(platform, d.pages);
-    } catch(e) {
-      console.error('[FIX] fetch error:', e);
-      _showToast('❌ خطأ: ' + e.message, 'error');
-    }
-  }
-
-  var _fixPages = [], _fixPlat = '';
-
-  function _showModal(platform, pages) {
-    _fixPages = pages; _fixPlat = platform;
-    var modal = document.getElementById('page-selector-modal');
-    var title = document.getElementById('page-selector-title');
-    var list  = document.getElementById('page-list');
-    if (title) title.textContent = 'اختر ' + (platform === 'instagram' ? 'حساب انستغرام' : 'الصفحة') + ' المراد ربطها';
-    if (list) {
-      list.innerHTML = pages.map(function(p, i) {
-        return '<button onclick="window._fixConnect(' + i + ')" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;width:100%;text-align:right;font-family:Cairo,sans-serif;margin-bottom:6px">'
-          + '<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#1e4d8c,#0ea5e9);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0">' + (platform==='instagram'?'📸':'📘') + '</div>'
-          + '<div><b style="color:#1a1a2e">' + p.name + '</b><br><small style="color:#64748b">ID: ' + p.id + (p.ig_username?' · @'+p.ig_username:'') + '</small></div>'
-          + '</button>';
-      }).join('');
-    }
-    if (modal) modal.style.display = 'flex';
-  }
-
-  window._fixConnect = async function(i) {
-    var p = _fixPages[i], plat = _fixPlat;
-    if (!p) return;
-    document.getElementById('page-selector-modal').style.display = 'none';
-    _showToast('⏳ جارٍ ربط ' + p.name + '...', 'info');
-    try {
-      var authToken = localStorage.getItem('fahim_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
-      var r = await fetch('/api/platforms/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-        body: JSON.stringify({ platform: plat, pageId: p.id, pageName: p.name, pageToken: p.access_token, igId: p.ig_id || '' })
-      });
-      var d = await r.json();
-      console.log('[FIX] connect:', JSON.stringify(d));
-      if (d.success) {
-        _showToast('✅ تم ربط ' + p.name + ' بنجاح!', 'success');
-        // Update UI
-        var key = plat === 'instagram' ? 'ig' : plat === 'facebook' ? 'fb' : 'wa';
-        var hdl = document.getElementById(key + '-handle');
-        var btn = document.getElementById('connect-' + key);
-        var dis = document.getElementById('disconnect-' + key);
-        if (hdl) hdl.textContent = p.ig_username ? '@' + p.ig_username : p.name;
-        if (btn) { btn.textContent = '✅ مربوط'; btn.disabled = true; btn.style.background = '#e8f5e9'; btn.style.color = '#2e7d32'; }
-        if (dis) dis.style.display = 'inline-flex';
-      } else {
-        _showToast('❌ ' + (d.error || 'فشل الربط'), 'error');
-      }
-    } catch(e) { _showToast('❌ خطأ: ' + e.message, 'error'); }
-  };
-
-  // ── 2. Fix logout button ────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', function() {
-    var btn = document.getElementById('logout-btn');
-    if (btn) {
-      btn.onclick = function(e) {
-        e.stopImmediatePropagation();
-        if (window.Auth) window.Auth.logout();
-        else { localStorage.clear(); sessionStorage.clear(); window.location.href = '/authentification.html'; }
-      };
-    }
-  });
-
-  function _showToast(msg, type) {
-    if (window.Toast && window.Toast.show) { window.Toast.show(msg, type); return; }
-    var c = document.getElementById('toast-container');
-    if (!c) return;
-    var t = document.createElement('div');
-    t.style.cssText = 'padding:12px 18px;border-radius:10px;margin-bottom:8px;font-family:Cairo,sans-serif;font-size:14px;direction:rtl;color:#1a1a2e;box-shadow:0 4px 12px rgba(0,0,0,.15);background:' + (type==='error'?'#fee2e2':type==='success'?'#d1fae5':'#fef3c7');
-    t.textContent = msg;
-    c.appendChild(t);
-    setTimeout(function(){t.remove();},5000);
-  }
-
-  console.log('[FIX] v20260418 loaded — connectWithFacebook patched ✅');
-})();
-`);
-});
 
 // ── Serve static frontend files ───────────────────────────────
 // JS/CSS: no-store so browser always fetches fresh version after deploy
-app.use('/js', express.static(path.join(__dirname, '..', 'js'), {
-  etag: false,
-  lastModified: false,
-  setHeaders: (res) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.set('Pragma', 'no-cache');
-  },
-}));
+
 app.use('/css', express.static(path.join(__dirname, '..', 'css'), {
   etag: false,
   lastModified: false,
