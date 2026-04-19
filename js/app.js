@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FAHIM DZ — Dashboard (Real API Version)
  * All data fetched from: /api/dashboard, /api/orders, /api/products, /api/platforms
  */
@@ -228,80 +228,37 @@ async function loadPlatforms() {
  *    client connects their WhatsApp Business Account → you get WABA token
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+  // Connect buttons — patched by /js/fix.js which uses server-side OAuth redirect.
+  // Do NOT attach handlers here; fix.js replaces the buttons via cloneNode.
+  // (Old FB.login handlers removed to prevent conflict with server-side OAuth popup)
 
-  // Instagram — Facebook Business Login → selects IG Business Account
-  document.getElementById('connect-ig')?.addEventListener('click', () => {
-    connectWithFacebook('instagram');
-  });
 
-  // Facebook Messenger — Facebook Business Login → selects Facebook Page
-  document.getElementById('connect-fb')?.addEventListener('click', () => {
-    connectWithFacebook('facebook');
-  });
-
-  // WhatsApp — Meta Embedded Signup
-  document.getElementById('connect-wa')?.addEventListener('click', () => {
-    connectWhatsApp();
-  });
-});
 
 // ── Facebook Business Login (Instagram + Facebook Messenger) ──────────────
 function connectWithFacebook(platform) {
-  if (typeof FB === 'undefined') {
-    return showConnectionGuide(platform);
-  }
-
-  // Basic scopes — do NOT include instagram_manage_messages here
-  // (it requires App Review approval; adding it blocks the whole auth flow)
-  const baseScopes = 'pages_show_list,pages_read_engagement,pages_manage_metadata,business_management';
-  const requiredScopes = platform === 'instagram'
-    ? `instagram_basic,${baseScopes}`
-    : `${baseScopes},pages_messaging`;
-
-  const platformLabel = platform === 'instagram' ? 'انستغرام' : 'فيسبوك ماسنجر';
-
-  Toast.show('⏳ جارٍ التحقق من حالة الاتصال...', 'info');
-
-  // ── Step 1: Check existing session first (no popup needed if already logged in)
-  FB.getLoginStatus(function(statusCheck) {
-    console.log('[connect] Initial getLoginStatus:', JSON.stringify(statusCheck));
-
-    if (statusCheck && statusCheck.authResponse && statusCheck.authResponse.accessToken) {
-      // Already connected — skip popup, go straight to pages
-      Toast.show('⏳ جارٍ تحميل صفحاتك...', 'info');
-      fetchAndSelectPages(platform, statusCheck.authResponse.accessToken, platformLabel);
-      return;
+  // Patched by /js/fix.js — uses /api/oauth/connect/:platform server-side redirect.
+  // If fix.js didn't override window.connectWithFacebook before this ran, do it here.
+  console.log('[dashboard.js] connectWithFacebook — delegating to server-side OAuth:', platform);
+  Toast.show('\u23f3 \u062c\u0627\u0631\u064a \u0641\u062a\u062d \u0646\u0627\u0641\u0630\u0629 \u0627\u0644\u0631\u0628\u0637...', 'info');
+  var authToken = localStorage.getItem('fahim_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
+  if (!authToken) { Toast.show('\u274c \u064a\u062c\u0628 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648\u0644\u0627\u064b.', 'error'); return; }
+  var url = '/api/oauth/connect/' + platform + '?token=' + encodeURIComponent(authToken);
+  var w = 620, h = 720;
+  var popup = window.open(url, 'fahim_oauth_' + platform,
+    'width=' + w + ',height=' + h + ',scrollbars=yes,resizable=yes');
+  if (!popup || popup.closed) {
+    Toast.show('\u26a0\ufe0f \u062a\u0645 \u062d\u062c\u0628 \u0627\u0644\u0646\u0627\u0641\u0630\u0629 \u0627\u0644\u0645\u0646\u0628\u062b\u0642\u0629.', 'warning');
+  } else {
+    function _h(e) { if (e.origin !== location.origin) return;
+      if (e.data && e.data.type === 'OAUTH_SUCCESS') { window.removeEventListener('message', _h); location.reload(); }
+      if (e.data && e.data.type === 'OAUTH_ERROR') { window.removeEventListener('message', _h); Toast.show('\u274c ' + (e.data.error || '\u0641\u0634\u0644 \u0627\u0644\u0631\u0628\u0637'), 'error'); }
     }
-
-    // ── Step 2: Not connected — open login popup (no auth_type rerequest!)
-    Toast.show('⏳ جارٍ فتح نافذة تسجيل الدخول...', 'info');
-    FB.login(function(response) {
-      console.log('[connect] FB.login response:', JSON.stringify(response));
-
-      if (response && response.authResponse && response.authResponse.accessToken) {
-        fetchAndSelectPages(platform, response.authResponse.accessToken, platformLabel);
-        return;
-      }
-
-      // ── Step 3: Popup closed without token — last chance check
-      console.warn('[connect] Popup returned null, trying getLoginStatus fallback...');
-      FB.getLoginStatus(function(fallback) {
-        console.log('[connect] Fallback getLoginStatus:', JSON.stringify(fallback));
-        if (fallback && fallback.authResponse && fallback.authResponse.accessToken) {
-          Toast.show('✅ تم التحقق من الجلسة.', 'success');
-          fetchAndSelectPages(platform, fallback.authResponse.accessToken, platformLabel);
-        } else {
-          Toast.show('❌ لم يتم تسجيل الدخول. أغلق النافذة المنبثقة وحاول مجدداً.', 'error');
-        }
-      }, true); // force fresh check
-    }, {
-      scope: requiredScopes,
-      return_scopes: true,
-      // NO auth_type: 'rerequest' — this causes authResponse:null on already-authed apps
-    });
-  }, true); // true = force fresh status (bypass cache)
+    window.addEventListener('message', _h);
+  }
 }
+
+
+
 
 
 
