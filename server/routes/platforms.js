@@ -318,9 +318,16 @@ router.get('/', requireAuth, async (req, res) => {
 
     const platforms = snap.docs.map(d => {
       const data = d.data();
-      // Never expose access tokens to frontend, but include hasToken flag
-      const { accessToken, ...safeData } = data;
-      return { type: d.id, ...safeData, connected: true, hasToken: !!accessToken };
+      // Strip all token fields — never send to frontend
+      const { accessToken, pageAccessToken, longLivedToken, ...safeData } = data;
+      // hasToken: true if ANY token field is present (handles both old and new OAuth flows)
+      const hasToken = !!(accessToken || pageAccessToken || longLivedToken);
+      // Normalize type: 'instagram' → 'ig', 'facebook' → 'fb', 'whatsapp' → 'wa'
+      const typeMap = { instagram: 'ig', facebook: 'fb', whatsapp: 'wa' };
+      const type = typeMap[d.id] || d.id;
+      // Normalize username: prefer igUsername (server OAuth) over username (JS SDK)
+      const username = safeData.igUsername || safeData.username || '';
+      return { type, ...safeData, username, connected: true, hasToken };
     });
 
     return res.json({ platforms });
@@ -328,6 +335,7 @@ router.get('/', requireAuth, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 // ── POST /api/platforms/ig ───────────────────────────────────
 router.post('/ig', requireAuth, async (req, res) => {
