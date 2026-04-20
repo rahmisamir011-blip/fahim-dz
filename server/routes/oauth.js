@@ -149,11 +149,17 @@ router.get('/callback', async (req, res) => {
     const pageToken = page.access_token;
     const pageId = page.id;
 
+    // ── Normalize to short key (ig/fb/wa) — webhook.js reads this key ──
+    const platformKeyMap = { instagram: 'ig', facebook: 'fb', whatsapp: 'wa' };
+    const platformKey = platformKeyMap[platform] || platform;
+
     let platformData = {
-      platform,
+      platform: platformKey,
       pageId,
       pageName: page.name,
       pageAccessToken: pageToken,
+      // Also store under 'accessToken' so messaging.js always finds it:
+      accessToken: pageToken,
       longLivedToken: longToken,
       tokenExpiry: Date.now() + (expiresIn * 1000),
       connectedAt: Date.now(),
@@ -163,29 +169,77 @@ router.get('/callback', async (req, res) => {
     // 4. If Instagram — get IG Business Account ID
     if (platform === 'instagram' && page.instagram_business_account) {
       const igId = page.instagram_business_account.id;
-      const igRes = await axios.get(`https://graph.facebook.com/${META_API_VERSION}/${igId}`, {
-        params: { fields: 'id,name,username,followers_count', access_token: pageToken },
-      });
-      platformData.igAccountId = igId;
-      platformData.igUsername = igRes.data.username;
-      platformData.igName = igRes.data.name;
+      try {
+        const igRes = await axios.get(`https://graph.facebook.com/${META_API_VERSION}/${igId}`, {
+          params: { fields: 'id,name,username,followers_count', access_token: pageToken },
+        });
+        platformData.igAccountId = igId;
+        platformData.igUsername = igRes.data.username;
+        platformData.igName = igRes.data.name;
+      } catch (igErr) {
+        console.warn('⚠️ Could not fetch IG account details:', igErr.message);
+        platformData.igAccountId = igId;
+      }
     }
 
-    // 5. Save to Firestore
+    // 5. Save to Firestore under SHORT key (ig/fb/wa)
     if (isFirebaseReady()) {
       const db = getDb();
-      await db.collection('users').doc(userId).collection('platforms').doc(platform).set(platformData);
+
+      // Save platform credentials under SHORT key so webhook.js finds them
+      await db.collection('users').doc(userId).collection('platforms').doc(platformKey).set(platformData);
+
+      // ── CRITICAL: Register in webhook_registry so findTenantByPageId() works ──
+      // Register FB Page ID → userId (always needed)
+      await db.collection('webhook_registry').doc(pageId).set({
+        userId,
+        platform: platformKey === 'ig' ? 'ig' : platformKey,
+        fbPageId: pageId,
+        registeredAt: Date.now(),
+      });
+
+      // If Instagram: ALSO register IG Business Account ID (this is entry.id in IG webhooks)
+      if (platformData.igAccountId) {
+        await db.collection('webhook_registry').doc(platformData.igAccountId).set({
+          userId,
+          platform: 'ig',
+          fbPageId: pageId,
+          registeredAt: Date.now(),
+        });
+        console.log(`✅ IG webhook_registry: igId=${platformData.igAccountId} fbPageId=${pageId} → userId=${userId}`);
+      }
 
       // Update user's connectedPlatforms array
       const userRef = db.collection('users').doc(userId);
       const userDoc = await userRef.get();
       const current = userDoc.data()?.connectedPlatforms || [];
-      if (!current.includes(platform)) {
-        await userRef.update({ connectedPlatforms: [...current, platform] });
+      if (!current.includes(platformKey)) {
+        await userRef.update({ connectedPlatforms: [...current, platformKey] });
       }
     }
 
-    return res.send(buildCallbackPage(true, platform, null, platformData));
+    // 6. ── CRITICAL: Subscribe page to Meta webhook message events ──
+    // Without this, Meta NEVER sends messages to our /webhook/meta endpoint
+    const subscribeFields = platform === 'instagram'
+      ? 'messages,messaging_postbacks,messaging_optins,message_reads,mentions,story_insights'
+      : 'messages,messaging_postbacks,messaging_optins,message_reads,feed';
+
+    let subscribeResult = 'skipped';
+    try {
+      const subRes = await axios.post(
+        `https://graph.facebook.com/${META_API_VERSION}/${pageId}/subscribed_apps`,
+        null,
+        { params: { subscribed_fields: subscribeFields, access_token: pageToken } }
+      );
+      subscribeResult = subRes.data?.success ? 'ok' : JSON.stringify(subRes.data);
+      console.log(`✅ Page ${pageId} subscribed to webhook events: ${subscribeResult}`);
+    } catch (subErr) {
+      subscribeResult = 'failed: ' + (subErr.response?.data?.error?.message || subErr.message);
+      console.warn(`⚠️ Webhook subscription failed for page ${pageId}:`, subscribeResult);
+      // Don't fail the whole flow — user is connected, subscription can be retried
+    }
+
+    return res.send(buildCallbackPage(true, platform, null, { ...platformData, subscribeResult }));
 
   } catch (err) {
     console.error('OAuth callback error:', err.response?.data || err.message);
@@ -193,6 +247,7 @@ router.get('/callback', async (req, res) => {
     return res.send(buildCallbackPage(false, platform, errMsg));
   }
 });
+
 
 // ── GET /api/oauth/status ─────────────────────────────────────
 // Returns connected platforms for an authenticated user

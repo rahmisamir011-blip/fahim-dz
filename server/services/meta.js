@@ -6,7 +6,7 @@
 const axios = require('axios');
 
 const META_BASE = 'https://graph.facebook.com';
-const WA_VERSION = process.env.WHATSAPP_API_VERSION || 'v19.0';
+const META_VERSION = process.env.META_API_VERSION || 'v21.0';
 
 // ============================================================
 // INSTAGRAM — Direct Messages
@@ -21,43 +21,43 @@ const WA_VERSION = process.env.WHATSAPP_API_VERSION || 'v19.0';
  */
 async function sendInstagramMessage(recipientIgId, text, pageToken, igAccountId) {
   // Instagram DMs require: POST /{ig-business-account-id}/messages
-  // NOT /me/messages (that's for Facebook Messenger)
-  const igId = igAccountId || 'me';
-  try {
-    const res = await axios.post(
-      `${META_BASE}/v21.0/${igId}/messages`,
-      {
-        recipient: { id: recipientIgId },
-        message: { text },
-        messaging_type: 'RESPONSE',
-      },
-      {
-        params: { access_token: pageToken },
-      }
-    );
-    console.log(`✅ IG send success: msgId=${res.data.message_id}`);
-    return { success: true, messageId: res.data.message_id };
-  } catch (err) {
-    const errData = err.response?.data?.error;
-    console.error('❌ IG send error:', JSON.stringify(errData || err.message));
-    // Try fallback: /me/messages
+  // The ig-business-account-id (igAccountId) is different from the FB Page ID
+  const payload = {
+    recipient: { id: recipientIgId },
+    message: { text },
+    messaging_type: 'RESPONSE',
+  };
+
+  // Try primary endpoint: /{igAccountId}/messages
+  if (igAccountId && igAccountId !== 'me') {
     try {
-      const res2 = await axios.post(
-        `${META_BASE}/v21.0/me/messages`,
-        {
-          recipient: { id: recipientIgId },
-          message: { text },
-          messaging_type: 'RESPONSE',
-        },
+      const res = await axios.post(
+        `${META_BASE}/${META_VERSION}/${igAccountId}/messages`,
+        payload,
         { params: { access_token: pageToken } }
       );
-      console.log(`✅ IG send fallback success: msgId=${res2.data.message_id}`);
-      return { success: true, messageId: res2.data.message_id };
-    } catch (err2) {
-      const e2 = err2.response?.data?.error;
-      console.error('❌ IG send fallback error:', JSON.stringify(e2 || err2.message));
-      return { success: false, error: errData?.message || err.message };
+      console.log(`✅ IG send success (igId): msgId=${res.data.message_id}`);
+      return { success: true, messageId: res.data.message_id };
+    } catch (err) {
+      const e = err.response?.data?.error;
+      console.error(`❌ IG send via igId=${igAccountId}:`, JSON.stringify(e || err.message));
+      // Fall through to /me/messages
     }
+  }
+
+  // Fallback: /me/messages (works when token is issued for the IG account directly)
+  try {
+    const res2 = await axios.post(
+      `${META_BASE}/${META_VERSION}/me/messages`,
+      payload,
+      { params: { access_token: pageToken } }
+    );
+    console.log(`✅ IG send success (/me): msgId=${res2.data.message_id}`);
+    return { success: true, messageId: res2.data.message_id };
+  } catch (err2) {
+    const e2 = err2.response?.data?.error;
+    console.error('❌ IG send /me fallback error:', JSON.stringify(e2 || err2.message));
+    return { success: false, error: e2?.message || err2.message, code: e2?.code };
   }
 }
 
@@ -91,21 +91,24 @@ async function getInstagramUser(igScopedUserId, pageToken) {
 async function sendFacebookMessage(recipientPsid, text, pageToken) {
   try {
     const res = await axios.post(
-      `${META_BASE}/v19.0/me/messages`,
+      `${META_BASE}/${META_VERSION}/me/messages`,
       {
         recipient: { id: recipientPsid },
         message: { text },
         messaging_type: 'RESPONSE',
       },
       {
+        // Use both header and param for broad compatibility
         headers: { Authorization: `Bearer ${pageToken}` },
+        params: { access_token: pageToken },
       }
     );
+    console.log(`✅ FB send success: msgId=${res.data.message_id}`);
     return { success: true, messageId: res.data.message_id };
   } catch (err) {
     const errData = err.response?.data?.error;
-    console.error('❌ FB send error:', errData || err.message);
-    return { success: false, error: errData?.message || err.message };
+    console.error('❌ FB send error:', JSON.stringify(errData || err.message));
+    return { success: false, error: errData?.message || err.message, code: errData?.code };
   }
 }
 
@@ -143,7 +146,7 @@ async function getFacebookUser(psid, pageToken) {
 async function sendWhatsAppMessage(phoneNumberId, to, text, token) {
   try {
     const res = await axios.post(
-      `${META_BASE}/${WA_VERSION}/${phoneNumberId}/messages`,
+      `${META_BASE}/${META_VERSION}/${phoneNumberId}/messages`,
       {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
@@ -172,7 +175,7 @@ async function sendWhatsAppMessage(phoneNumberId, to, text, token) {
 async function markWhatsAppRead(phoneNumberId, messageId, token) {
   try {
     await axios.post(
-      `${META_BASE}/${WA_VERSION}/${phoneNumberId}/messages`,
+      `${META_BASE}/${META_VERSION}/${phoneNumberId}/messages`,
       {
         messaging_product: 'whatsapp',
         status: 'read',

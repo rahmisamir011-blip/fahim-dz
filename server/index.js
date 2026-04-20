@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ╔════════════════════════════════════════════════════════╗
  * ║         FAHIM DZ — Backend Server                     ║
  * ║  AI Sales Agent for Instagram, Facebook & WhatsApp    ║
@@ -313,6 +313,114 @@ app.get('/privacy.html', (req, res) => {
 });
 
 
+// ── Debug: Full pipeline diagnosis for logged-in user ─────────────────
+// Usage: GET /api/debug/diagnose  (with Authorization: Bearer <fahim_token>)
+// Returns pass/fail for every step in the messaging pipeline
+app.get('/api/debug/diagnose', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  if (!token) return res.json({ error: 'Pass Authorization: Bearer <token> header or ?token=...' });
+
+  const report = { timestamp: new Date().toISOString(), steps: [] };
+  const ok  = (step, msg, data = {}) => report.steps.push({ step, status: '✅', msg, ...data });
+  const fail = (step, msg, data = {}) => report.steps.push({ step, status: '❌', msg, ...data });
+  const warn = (step, msg, data = {}) => report.steps.push({ step, status: '⚠️', msg, ...data });
+
+  try {
+    const jwt = require('jsonwebtoken');
+    let userId;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userId = decoded.userId;
+      ok('auth', `JWT valid, userId=${userId}`);
+    } catch (e) {
+      fail('auth', `JWT invalid: ${e.message}`);
+      return res.json(report);
+    }
+
+    const { getDb, isFirebaseReady } = require('./config/firebase');
+    if (!isFirebaseReady()) { fail('firebase', 'Firebase not ready'); return res.json(report); }
+    ok('firebase', 'Firebase connected');
+
+    const db = getDb();
+
+    // Check user doc
+    const userSnap = await db.collection('users').doc(userId).get();
+    if (!userSnap.exists) { fail('user', 'User doc not found in Firestore'); return res.json(report); }
+    const userData = userSnap.data();
+    const balance = userData.points ?? userData.credits ?? 0;
+    if (balance <= 0) fail('points', `Balance is ${balance} — bot will NOT reply (add points!)`);
+    else ok('points', `Balance: ${balance} points`);
+
+    // Check platform docs
+    const platSnap = await db.collection('users').doc(userId).collection('platforms').get();
+    if (platSnap.empty) { fail('platforms', 'No platforms connected — connect Instagram/Facebook first'); return res.json(report); }
+
+    const axios = require('axios');
+    const META_VERSION = process.env.META_API_VERSION || 'v21.0';
+
+    for (const doc of platSnap.docs) {
+      const platData = doc.data();
+      const platKey = doc.id; // should be 'ig', 'fb', 'wa'
+      const token = platData.accessToken || platData.pageAccessToken;
+
+      ok(`platform:${platKey}`, `Doc found — pageId=${platData.pageId} igAccountId=${platData.igAccountId || 'N/A'}`);
+
+      if (!token) { fail(`platform:${platKey}:token`, 'No access token stored!'); continue; }
+      ok(`platform:${platKey}:token`, `Token present (${token.substring(0,20)}...)`);
+
+      // Check webhook_registry
+      const reg1 = await db.collection('webhook_registry').doc(platData.pageId).get();
+      if (!reg1.exists) fail(`registry:${platKey}:pageId`, `FB pageId=${platData.pageId} NOT in webhook_registry — will not receive messages`);
+      else ok(`registry:${platKey}:pageId`, `FB pageId=${platData.pageId} → userId=${reg1.data().userId}`);
+
+      if (platData.igAccountId) {
+        const reg2 = await db.collection('webhook_registry').doc(platData.igAccountId).get();
+        if (!reg2.exists) fail(`registry:${platKey}:igId`, `IG accountId=${platData.igAccountId} NOT in webhook_registry`);
+        else ok(`registry:${platKey}:igId`, `IG accountId=${platData.igAccountId} → userId=${reg2.data().userId}`);
+      }
+
+      // Check page webhook subscription
+      try {
+        const subCheck = await axios.get(
+          `https://graph.facebook.com/${META_VERSION}/${platData.pageId}/subscribed_apps`,
+          { params: { access_token: token } }
+        );
+        const subs = subCheck.data?.data || [];
+        if (subs.length === 0) fail(`webhook:${platKey}`, `Page ${platData.pageId} has NO app subscriptions — messages will NOT arrive`);
+        else ok(`webhook:${platKey}`, `Page ${platData.pageId} subscribed: ${subs.map(s => s.name).join(', ')}`);
+      } catch (e) {
+        warn(`webhook:${platKey}`, `Could not check subscription: ${e.response?.data?.error?.message || e.message}`);
+      }
+
+      // Token validity check
+      try {
+        const debugRes = await axios.get(`https://graph.facebook.com/debug_token`, {
+          params: { input_token: token, access_token: `${process.env.META_APP_ID}|${process.env.META_APP_SECRET}` }
+        });
+        const tokenData = debugRes.data?.data;
+        if (!tokenData?.is_valid) fail(`token:${platKey}`, `Token is INVALID or expired!`, { tokenData });
+        else {
+          const exp = tokenData.expires_at ? new Date(tokenData.expires_at * 1000).toISOString() : 'never';
+          ok(`token:${platKey}`, `Token valid, expires: ${exp}, scopes: ${(tokenData.scopes || []).slice(0,5).join(',')}`);
+        }
+      } catch (e) {
+        warn(`token:${platKey}`, `Could not validate token: ${e.message}`);
+      }
+    }
+
+    // Gemini check
+    if (!process.env.GEMINI_API_KEY) fail('gemini', 'GEMINI_API_KEY not set — no AI replies possible');
+    else ok('gemini', 'GEMINI_API_KEY configured');
+
+    report.summary = report.steps.filter(s => s.status === '❌').length === 0 ? '✅ All checks passed' : '❌ Issues found — check steps above';
+    res.json(report);
+
+  } catch (err) {
+    report.error = err.message;
+    res.status(500).json(report);
+  }
+});
+
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/webhook/')) {
@@ -320,6 +428,7 @@ app.use((req, res) => {
   }
   res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
+
 
 // ── Error handler ─────────────────────────────────────────────
 app.use((err, req, res, next) => {
