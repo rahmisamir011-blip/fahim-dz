@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
@@ -470,16 +470,47 @@
 
       <div class="profile-settings">
         <div class="settings-section">
-          <h3>إعدادات المتجر</h3>
-          <div class="setting-row">
-            <label>إسم المتجر</label>
-            <input type="text" id="store-name-input" placeholder="إسم متجرك" />
+          <h3>⚙️ إعدادات الوكيل الذكي</h3>
+
+          <!-- Agent on/off toggle (quick access) -->
+          <div class="setting-row" style="align-items:center">
+            <label>حالة الوكيل</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label class="toggle-switch">
+                <input type="checkbox" id="agent-toggle" checked />
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="agent-label" style="font-size:0.88rem;font-weight:600;color:var(--secondary,#22c55e)">الوكيل نشط</span>
+            </div>
           </div>
+
           <div class="setting-row">
-            <label>رسالة الترحيب</label>
-            <textarea id="welcome-message" rows="3" placeholder="مرحباً بيك! كيفاش نخدمك؟"></textarea>
+            <label>اسم المتجر</label>
+            <input type="text" id="store-name-input" placeholder="مثال: متجر سمير للإكسسوارات" />
           </div>
-          <button class="save-settings-btn" id="save-settings">💾 حفظ الإعدادات</button>
+
+          <div class="setting-row">
+            <label>اسم الوكيل الذكي</label>
+            <input type="text" id="bot-name-input" placeholder="مثال: فهيم، سمير، نور..." />
+            <small style="color:#94a3b8;font-size:0.78rem;margin-top:4px">هذا الاسم سيعرّف به الذكاء الاصطناعي عن نفسه مع كل زبون</small>
+          </div>
+
+          <div class="setting-row">
+            <label>لغة الردود</label>
+            <select id="bot-language" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Cairo,sans-serif;font-size:0.9rem">
+              <option value="dz">🇩🇿 الدارجة الجزائرية (مع فرنسية عند الحاجة)</option>
+              <option value="ar">🌍 العربية الفصحى</option>
+              <option value="fr">🇫🇷 Français</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <label>رسالة الترحيب الافتراضية</label>
+            <textarea id="welcome-message" rows="3" placeholder="مثال: أهلاً بيك في متجرنا! كيفاش نخدمك اليوم؟ 😊"></textarea>
+            <small style="color:#94a3b8;font-size:0.78rem;margin-top:4px">تُرسل هذه الرسالة أول مرة يتواصل فيها زبون جديد</small>
+          </div>
+
+          <button class="save-settings-btn" id="save-settings">💾 حفظ إعدادات الوكيل</button>
         </div>
       </div>
     </div>

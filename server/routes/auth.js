@@ -71,7 +71,13 @@ router.post('/register', async (req, res) => {
       email: email.toLowerCase().trim(),
       passwordHash,
       storeName: storeName?.trim() || `${name.trim()}'s Store`,
-      points: 50,       // Free starter points
+      // ── Bot configuration (customisable from dashboard settings) ──
+      botName: 'فهيم',             // AI agent display name
+      language: 'dz',              // dz=darija, ar=arabic, fr=french
+      welcomeMessage: '',          // Custom greeting (optional)
+      agentEnabled: true,          // Master on/off switch for AI replies
+      // ── Account ──────────────────────────────────────────────────
+      points: 100,                 // Free starter credits (100 message replies)
       plan: 'free',
       totalMessages: 0,
       connectedPlatforms: [],

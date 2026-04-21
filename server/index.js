@@ -1,8 +1,8 @@
 /**
  * ╔════════════════════════════════════════════════════════╗
  * ║         FAHIM DZ — Backend Server                     ║
- * ║  AI Sales Agent for Instagram, Facebook & WhatsApp    ║
- * ║  Deploy: 2026-04-19T21:24 — server-side OAuth popup  ║
+ * ║  Multi-Tenant AI SaaS for IG, Facebook & WhatsApp     ║
+ * ║  Deploy: 2026-04-20 — multi-tenant + token refresh    ║
  * ╚════════════════════════════════════════════════════════╝
  *
  * Start: node server/index.js
@@ -21,15 +21,17 @@ const path = require('path');
 // ── Config & Services ─────────────────────────────────────────
 const { initFirebase } = require('./config/firebase');
 const { captureRawBody } = require('./middleware/webhookVerify');
+const { startTokenRefreshService } = require('./services/tokenRefresh');
 
 // ── Routes ────────────────────────────────────────────────────
-const authRoutes = require('./routes/auth');
-const webhookRoutes = require('./routes/webhook');
+const authRoutes     = require('./routes/auth');
+const webhookRoutes  = require('./routes/webhook');
 const platformRoutes = require('./routes/platforms');
-const orderRoutes = require('./routes/orders');
-const productRoutes = require('./routes/products');
+const orderRoutes    = require('./routes/orders');
+const productRoutes  = require('./routes/products');
 const dashboardRoutes = require('./routes/dashboard');
-const oauthRoutes = require('./routes/oauth');
+const oauthRoutes    = require('./routes/oauth');
+const settingsRoutes = require('./routes/settings');
 
 // ── Initialize Firebase ───────────────────────────────────────
 initFirebase();
@@ -106,12 +108,13 @@ app.use('/css', express.static(path.join(__dirname, '..', 'css'), {
 app.use(express.static(path.join(__dirname, '..')));
 
 // ── API Routes ────────────────────────────────────────────────
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/oauth', apiLimiter, oauthRoutes);
-app.use('/api/platforms', apiLimiter, platformRoutes);
-app.use('/api/orders', apiLimiter, orderRoutes);
-app.use('/api/products', apiLimiter, productRoutes);
-app.use('/api/dashboard', apiLimiter, dashboardRoutes);
+app.use('/api/auth',      authLimiter, authRoutes);
+app.use('/api/oauth',     apiLimiter,  oauthRoutes);
+app.use('/api/platforms', apiLimiter,  platformRoutes);
+app.use('/api/orders',    apiLimiter,  orderRoutes);
+app.use('/api/products',  apiLimiter,  productRoutes);
+app.use('/api/dashboard', apiLimiter,  dashboardRoutes);
+app.use('/api/settings',  apiLimiter,  settingsRoutes); // per-tenant bot config + agent toggle
 
 // ── Public Config (safe to expose to frontend) ────────────────
 // Only meta APP_ID is public — App Secret NEVER goes to frontend
@@ -128,14 +131,15 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'FAHIM DZ API',
-    version: '2.0.0',   // Updated: fix.js route + connect flow patch
-    deploy: '2026-04-18T13:51',
+    version: '3.0.0-multitenant',
+    deploy: '2026-04-20T22:00',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + 's',
     firebase: isFirebaseReady() ? 'connected' : 'DEMO mode',
-    gemini: process.env.GEMINI_API_KEY ? 'configured' : 'MISSING',
-    meta: process.env.META_APP_ID ? 'configured' : 'MISSING',
+    gemini: process.env.GEMINI_API_KEY ? '✅ configured' : '❌ MISSING',
+    meta: process.env.META_APP_ID ? '✅ configured' : '❌ MISSING',
     webhookUrl: `${process.env.FRONTEND_URL}/webhook/meta`,
+    features: ['multi-tenant', 'per-tenant-bot', 'agent-toggle', 'token-auto-refresh'],
   });
 });
 
@@ -455,6 +459,11 @@ app.listen(PORT, () => {
   console.log(`  Firebase Project: ${process.env.FIREBASE_PROJECT_ID || '⚠️  NOT SET'}`);
   console.log(`  Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ configured' : '⚠️  NOT SET'}`);
   console.log(`  Meta App: ${process.env.META_APP_ID && process.env.META_APP_ID !== 'YOUR_META_APP_ID' ? '✅ configured' : '⚠️  NOT SET (OAuth will show setup guide)'}\n`);
+  console.log(`  🏢  Multi-tenant: each user's bot uses their own store config`);
+  console.log(`  🔄  Token refresh: running every 24h to keep connections alive\n`);
+
+  // ── Start background services ──────────────────────────────
+  startTokenRefreshService(); // keeps Meta tokens alive for all tenants
 });
 
 module.exports = app;

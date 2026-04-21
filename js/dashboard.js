@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FAHIM DZ — Dashboard (Real API Version)
  * All data fetched from: /api/dashboard, /api/orders, /api/products, /api/platforms
  */
@@ -130,19 +130,136 @@ function initTopbar(user) {
 
 function initAgentToggle() {
   const toggle = document.getElementById('agent-toggle');
-  const label = document.getElementById('agent-label');
-  toggle?.addEventListener('change', () => {
-    if (toggle.checked) {
-      label.textContent = 'الوكيل نشط';
-      label.style.color = 'var(--secondary)';
-      Toast.show('تم تفعيل الوكيل الذكي! سيرد على رسائل منصاتك تلقائياً.', 'success');
-    } else {
-      label.textContent = 'الوكيل متوقف';
-      label.style.color = '#999';
-      Toast.show('تم إيقاف الوكيل الذكي', 'info');
+  const label  = document.getElementById('agent-label');
+  if (!toggle) return;
+
+  toggle.addEventListener('change', async () => {
+    const enabled = toggle.checked;
+    if (label) {
+      label.textContent = enabled ? 'الوكيل نشط' : 'الوكيل متوقف';
+      label.style.color = enabled ? 'var(--secondary, #22c55e)' : '#999';
+    }
+
+    // Persist to Firestore via API
+    try {
+      const res = await apiFetch('/api/settings/agent', {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled }),
+      });
+      if (res?.success) {
+        Toast.show(
+          enabled
+            ? '✅ الوكيل الذكي نشط — سيرد على رسائل منصاتك تلقائياً'
+            : '⏸️ الوكيل متوقف — لن يرد على أي رسالة حتى تُعيد تفعيله',
+          enabled ? 'success' : 'info'
+        );
+      }
+    } catch (err) {
+      console.error('Agent toggle error:', err);
+      Toast.show('حدث خطأ في حفظ الإعداد', 'error');
+      // Revert the toggle on error
+      toggle.checked = !enabled;
     }
   });
 }
+
+// ── PROFILE & BOT SETTINGS PAGE ───────────────────────────────
+async function loadProfilePage() {
+  const user = Auth.getUser();
+  if (!user) return;
+
+  // Fill profile card
+  const nameEl  = document.getElementById('profile-name');
+  const emailEl = document.getElementById('profile-email');
+  const planEl  = document.getElementById('profile-plan');
+  const psPoints = document.getElementById('ps-points');
+  const psOrders = document.getElementById('ps-orders');
+  const psMsgs   = document.getElementById('ps-messages');
+
+  if (nameEl)  nameEl.textContent  = user.name  || user.storeName || 'مستخدم';
+  if (emailEl) emailEl.textContent = user.email || '';
+  if (planEl)  planEl.textContent  = user.plan  === 'pro' ? '🏆 Pro' : '🆓 مجاني';
+  if (psPoints) psPoints.textContent = (user.points || 0).toLocaleString('ar-DZ');
+  if (psOrders) psOrders.textContent = (user.totalOrders || 0).toLocaleString('ar-DZ');
+  if (psMsgs)   psMsgs.textContent   = (user.totalMessages || 0).toLocaleString('ar-DZ');
+
+  // Load settings from API
+  try {
+    const settings = await apiFetch('/api/settings');
+    if (!settings) return;
+
+    // Fill bot settings form
+    const storeInput   = document.getElementById('store-name-input');
+    const botNameInput = document.getElementById('bot-name-input');
+    const langSelect   = document.getElementById('bot-language');
+    const welcomeTxt   = document.getElementById('welcome-message');
+    const agentToggle  = document.getElementById('agent-toggle');
+    const agentLabel   = document.getElementById('agent-label');
+
+    if (storeInput)   storeInput.value   = settings.storeName      || '';
+    if (botNameInput) botNameInput.value = settings.botName         || 'فهيم';
+    if (langSelect)   langSelect.value   = settings.language        || 'dz';
+    if (welcomeTxt)   welcomeTxt.value   = settings.welcomeMessage  || '';
+    if (agentToggle) {
+      agentToggle.checked = settings.agentEnabled !== false;
+      if (agentLabel) {
+        agentLabel.textContent = agentToggle.checked ? 'الوكيل نشط' : 'الوكيل متوقف';
+        agentLabel.style.color = agentToggle.checked ? 'var(--secondary, #22c55e)' : '#999';
+      }
+    }
+
+    // Show credit balance
+    if (psPoints) psPoints.textContent = (settings.points || 0).toLocaleString('ar-DZ');
+    if (psMsgs)   psMsgs.textContent   = (settings.totalMessages || 0).toLocaleString('ar-DZ');
+
+  } catch (err) {
+    console.error('Settings load error:', err);
+  }
+
+  // Wire save settings button
+  const saveBtn = document.getElementById('save-settings');
+  if (saveBtn && !saveBtn.dataset.wired) {
+    saveBtn.dataset.wired = '1';
+    saveBtn.addEventListener('click', async () => {
+      const storeName      = document.getElementById('store-name-input')?.value.trim();
+      const botName        = document.getElementById('bot-name-input')?.value.trim();
+      const language       = document.getElementById('bot-language')?.value;
+      const welcomeMessage = document.getElementById('welcome-message')?.value;
+
+      if (!storeName) { Toast.show('أدخل اسم المتجر', 'warning'); return; }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = '⏳ جاري الحفظ...';
+      try {
+        const res = await apiFetch('/api/settings', {
+          method: 'PATCH',
+          body: JSON.stringify({ storeName, botName, language, welcomeMessage }),
+        });
+        if (res?.success) {
+          // Update local cache
+          const cachedUser = Auth.getUser();
+          if (cachedUser) {
+            cachedUser.storeName = storeName;
+            localStorage.setItem('fahim_user', JSON.stringify(cachedUser));
+          }
+          // Update topbar
+          const topbarName = document.getElementById('store-name');
+          if (topbarName) topbarName.textContent = storeName;
+
+          Toast.show('✅ تم حفظ إعدادات الوكيل بنجاح!', 'success');
+        } else {
+          Toast.show(res?.error || 'حدث خطأ في الحفظ', 'error');
+        }
+      } catch (err) {
+        Toast.show('تعذر الحفظ — تحقق من الاتصال', 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 حفظ الإعدادات';
+      }
+    });
+  }
+}
+
 
 // ── DASHBOARD STATS ────────────────────────────────────────────
 async function loadDashboardStats() {

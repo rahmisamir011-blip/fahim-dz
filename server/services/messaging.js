@@ -1,29 +1,38 @@
 /**
  * FAHIM DZ — Core Messaging Service
- * Orchestrates: webhook event → AI → Meta reply → Firestore save
+ * Multi-tenant: each message is routed to its owner's bot, using
+ * that tenant's configuration, products, and conversation history.
+ *
+ * Pipeline:
+ *   webhook → findTenant → loadConfig → agentToggle check →
+ *   loadHistory → loadProducts → AI reply → send → save → deduct credit
  */
 
 const { getDb } = require('../config/firebase');
 const { generateReply } = require('./ai');
 const metaService = require('./meta');
 
+// ─────────────────────────────────────────────────────────────
+// Main Message Processor
+// ─────────────────────────────────────────────────────────────
+
 /**
- * Process an incoming message from any platform
- * @param {object} event - normalized event from webhook parser
- * @param {string} tenantId - the user/tenant who owns the platform
- * @param {object} platform - { type, accessToken, phoneNumberId, pageId }
+ * Process an incoming message for a specific tenant
+ * @param {object} event    - { platform, senderId, senderName, messageText, messageId, timestamp }
+ * @param {string} tenantId - Firestore userId of the page owner
+ * @param {object} platform - { type, accessToken, pageId, igAccountId, ... }
  */
 async function processMessage(event, tenantId, platform) {
   const db = getDb();
   const { senderId, senderName, messageText, platform: platformType, messageId } = event;
 
-  console.log(`\n📩 processMessage START: platform=${platformType} tenantId=${tenantId} sender=${senderId} text="${messageText?.substring(0,30)}"`);
+  console.log(`\n📩 [${platformType.toUpperCase()}] tenant=${tenantId} sender=${senderId} text="${messageText?.substring(0, 40)}"`);
 
-  if (!messageText || messageText.trim() === '') return;
+  if (!messageText?.trim()) return;
 
   try {
-    // ── 1. Check tenant credits/points balance ───────────────
-    const userRef = db.collection('users').doc(tenantId);
+    // ── 1. Load tenant config ─────────────────────────────────
+    const userRef  = db.collection('users').doc(tenantId);
     const userSnap = await userRef.get();
 
     if (!userSnap.exists) {
@@ -32,134 +41,158 @@ async function processMessage(event, tenantId, platform) {
     }
 
     const userData = userSnap.data();
-    // Support both 'points' and 'credits' field names
-    const balance = userData.points ?? userData.credits ?? 0;
-    console.log(`💰 Tenant ${tenantId} balance: ${balance} points`);
 
-    if (balance <= 0) {
-      console.warn(`💸 Tenant ${tenantId} has 0 balance — skipping reply`);
+    // ── 2. Check agent toggle (per-tenant on/off switch) ──────
+    // agentEnabled defaults to true if not set (backwards compat)
+    if (userData.agentEnabled === false) {
+      console.log(`🔕 Agent disabled for tenant ${tenantId} (${userData.storeName}) — skipping reply`);
       return;
     }
 
-    // ── 2. Load conversation history ────────────────────────
-    const convId = `${platformType}_${senderId}`;
-    const convRef = db
-      .collection('users').doc(tenantId)
-      .collection('conversations').doc(convId);
+    // ── 3. Check credit balance ───────────────────────────────
+    const balance = userData.points ?? userData.credits ?? 0;
+    if (balance <= 0) {
+      console.warn(`💸 Tenant ${tenantId} (${userData.storeName}) has no credits — skipping reply`);
+      return;
+    }
 
+    // ── 4. Load conversation history ──────────────────────────
+    const convId  = `${platformType}_${senderId}`;
+    const convRef = db.collection('users').doc(tenantId).collection('conversations').doc(convId);
     const convSnap = await convRef.get();
-    const existingConv = convSnap.exists ? convSnap.data() : null;
-    const history = existingConv?.messages || [];
+    const history  = convSnap.exists ? (convSnap.data().messages || []) : [];
 
-    // ── 3. Load products for context ────────────────────────
+    // ── 5. Load tenant products ───────────────────────────────
     const productsSnap = await db
       .collection('users').doc(tenantId)
       .collection('products')
-      .limit(20)
+      .where('active', '!=', false)   // only active products
+      .limit(30)
       .get();
 
     const products = productsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // ── 4. Generate AI reply ────────────────────────────────
-    const { reply, orderData } = await generateReply(messageText, history, products);
+    // ── 6. Build tenant config for AI ─────────────────────────
+    const tenantConfig = {
+      storeName:      userData.storeName      || 'المتجر',
+      botName:        userData.botName        || 'فهيم',
+      language:       userData.language       || 'dz',
+      welcomeMessage: userData.welcomeMessage || '',
+    };
 
-    // ── 5. Send reply via Meta ──────────────────────────────
+    // ── 7. Generate AI reply ──────────────────────────────────
+    const { reply, orderData } = await generateReply(
+      messageText, history, products, tenantConfig
+    );
+
+    console.log(`🤖 [${platformType.toUpperCase()}] AI reply for ${userData.storeName}: "${reply.substring(0, 60)}..."`);
+
+    // ── 8. Send reply via Meta Graph API ──────────────────────
     let sendResult;
 
     if (platformType === 'ig') {
       const igAccountId = platform.igAccountId || platform.pageId || '';
-      console.log(`📤 Sending IG reply to ${senderId} igAccountId=${igAccountId} token=${platform.accessToken?.substring(0,20)}...`);
+      console.log(`📤 IG → ${senderId} via igAccountId=${igAccountId}`);
       sendResult = await metaService.sendInstagramMessage(
         senderId, reply, platform.accessToken, igAccountId
       );
     } else if (platformType === 'fb') {
-      console.log(`📤 Sending FB reply to ${senderId}`);
+      console.log(`📤 FB → ${senderId}`);
       sendResult = await metaService.sendFacebookMessage(
         senderId, reply, platform.accessToken
       );
     } else if (platformType === 'wa') {
-      console.log(`📤 Sending WA reply to ${senderId}`);
+      console.log(`📤 WA → ${senderId}`);
       sendResult = await metaService.sendWhatsAppMessage(
         platform.phoneNumberId, senderId, reply, platform.accessToken
       );
-      // Mark as read
       if (messageId) {
         await metaService.markWhatsAppRead(
           platform.phoneNumberId, messageId, platform.accessToken
-        );
+        ).catch(() => {}); // non-critical
       }
     }
 
-    console.log(`✅ [${platformType.toUpperCase()}] Reply sent to ${senderId} result:`, JSON.stringify(sendResult || {}).substring(0,120));
+    const sent = sendResult?.success;
+    console.log(`${sent ? '✅' : '❌'} [${platformType.toUpperCase()}] send to ${senderId}: ${sent ? 'ok' : sendResult?.error}`);
 
-    // ── 6. Save conversation to Firestore ──────────────────
+    // ── 9. Save conversation to Firestore ─────────────────────
     const now = Date.now();
     const updatedHistory = [
       ...history,
-      { role: 'user', content: messageText, ts: now },
-      { role: 'assistant', content: reply, ts: now },
-    ].slice(-40); // Keep last 40 messages max
+      { role: 'user',      content: messageText, ts: now },
+      { role: 'assistant', content: reply,        ts: now },
+    ].slice(-40); // keep last 40 messages
 
-    const convUpdate = {
-      platform: platformType,
+    await convRef.set({
+      platform:    platformType,
       senderId,
-      senderName: senderName || senderId,
-      messages: updatedHistory,
+      senderName:  senderName || senderId,
+      messages:    updatedHistory,
       lastMessage: messageText,
-      lastReply: reply,
-      updatedAt: now,
-    };
+      lastReply:   reply,
+      replySent:   sent,
+      updatedAt:   now,
+      ...(convSnap.exists ? {} : { createdAt: now }),
+    }, { merge: true });
 
-    if (!convSnap.exists) {
-      convUpdate.createdAt = now;
-    }
-
-    await convRef.set(convUpdate, { merge: true });
-
-    // ── 7. If order confirmed → create order in Firestore ──
+    // ── 10. If order confirmed → create order doc ─────────────
     if (orderData?.intent === 'order_confirmed') {
       const orderRef = db
         .collection('users').doc(tenantId)
-        .collection('orders')
-        .doc();
+        .collection('orders').doc();
 
       await orderRef.set({
-        id: orderRef.id,
-        client: orderData.client || senderName || senderId,
-        product: orderData.product || 'غير محدد',
-        qty: orderData.qty || 1,
-        price: orderData.price || 0,
-        phone: orderData.phone || '',
-        wilaya: orderData.wilaya || '',
-        source: platformType,
-        status: 'pending',
+        id:             orderRef.id,
+        client:         orderData.client  || senderName || senderId,
+        product:        orderData.product || 'غير محدد',
+        qty:            orderData.qty     || 1,
+        price:          orderData.price   || 0,
+        phone:          orderData.phone   || '',
+        wilaya:         orderData.wilaya  || '',
+        source:         platformType,
+        status:         'pending',
         conversationId: convId,
-        createdAt: now,
+        createdAt:      now,
       });
 
-      console.log(`📦 Auto-order created for ${tenantId}: ${orderData.product}`);
+      console.log(`📦 Auto-order created for ${userData.storeName}: ${orderData.product}`);
     }
 
-    // ── 8. Deduct 1 point ──────────────────────────────────
-    await userRef.update({
-      points: Math.max(0, (userData.points || 0) - 1),
-      totalMessages: (userData.totalMessages || 0) + 1,
-    });
+    // ── 11. Deduct 1 credit ───────────────────────────────────
+    if (sent !== false) { // only deduct if send was attempted
+      await userRef.update({
+        points:        Math.max(0, balance - 1),
+        totalMessages: (userData.totalMessages || 0) + 1,
+      });
+    }
 
   } catch (err) {
-    console.error(`❌ processMessage error [${platformType}/${senderId}]:`, err.message);
+    console.error(`❌ processMessage error [${platformType}/${senderId}/${tenantId}]:`, err.message);
+    // Don't re-throw — webhook must always return 200 to Meta
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Tenant Lookup (fast O(1) via webhook_registry)
+// ─────────────────────────────────────────────────────────────
+
 /**
- * Find the tenant who owns a given page/phone ID
- * Uses the webhook_registry collection for fast lookup
+ * Find the tenant who owns a given Facebook Page ID or IG Business Account ID.
+ * Uses the webhook_registry collection for O(1) lookup.
+ * @param {string} pageId - FB Page ID or IG Business Account ID
+ * @returns {object|null} { userId, platform, fbPageId } or null
  */
 async function findTenantByPageId(pageId) {
+  if (!pageId) return null;
   const db = getDb();
   try {
-    const snap = await db.collection('webhook_registry').doc(pageId).get();
-    if (snap.exists) return snap.data();
+    const snap = await db.collection('webhook_registry').doc(String(pageId)).get();
+    if (snap.exists) {
+      console.log(`🔍 webhook_registry: ${pageId} → userId=${snap.data().userId}`);
+      return snap.data();
+    }
+    console.warn(`⚠️ webhook_registry: no entry for id=${pageId}`);
     return null;
   } catch (err) {
     console.error('findTenantByPageId error:', err.message);
@@ -168,7 +201,7 @@ async function findTenantByPageId(pageId) {
 }
 
 /**
- * Find the tenant who owns a given WhatsApp phone number ID
+ * Find tenant by WhatsApp phone number ID (same lookup, different name)
  */
 async function findTenantByPhoneId(phoneNumberId) {
   return findTenantByPageId(phoneNumberId);
