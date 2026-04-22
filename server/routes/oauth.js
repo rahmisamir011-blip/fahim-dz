@@ -16,18 +16,20 @@ const axios = require('axios');
 const { getDb, isFirebaseReady } = require('../config/firebase');
 const jwt = require('jsonwebtoken');
 
-const META_API_VERSION = process.env.WHATSAPP_API_VERSION || 'v19.0';
+const META_API_VERSION = process.env.META_API_VERSION || 'v21.0';
 const BASE_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 // Scope sets per platform
+// NOTE: Only request scopes your Meta App is approved for.
+// instagram_manage_messages requires App Review, but works in Dev mode for testers.
 const SCOPES = {
   instagram: [
     'instagram_basic',
     'instagram_manage_messages',
-    'instagram_manage_comments',
     'pages_show_list',
     'pages_read_engagement',
     'pages_manage_metadata',
+    'business_management',
   ].join(','),
 
   facebook: [
@@ -35,6 +37,7 @@ const SCOPES = {
     'pages_read_engagement',
     'pages_manage_metadata',
     'pages_messaging',
+    'business_management',
   ].join(','),
 
   whatsapp: [
@@ -218,11 +221,11 @@ router.get('/callback', async (req, res) => {
       }
     }
 
-    // 6. ── CRITICAL: Subscribe page to Meta webhook message events ──
-    // Without this, Meta NEVER sends messages to our /webhook/meta endpoint
-    const subscribeFields = platform === 'instagram'
-      ? 'messages,messaging_postbacks,messaging_optins,message_reads,mentions,story_insights'
-      : 'messages,messaging_postbacks,messaging_optins,message_reads,feed';
+    // 6. Subscribe page to Meta webhook events
+    // IMPORTANT: Only use fields the app is approved for.
+    // story_insights/mentions require special review — including them causes
+    // the ENTIRE subscription to silently fail, breaking IG message delivery.
+    const subscribeFields = 'messages,messaging_postbacks';
 
     let subscribeResult = 'skipped';
     try {
@@ -232,11 +235,19 @@ router.get('/callback', async (req, res) => {
         { params: { subscribed_fields: subscribeFields, access_token: pageToken } }
       );
       subscribeResult = subRes.data?.success ? 'ok' : JSON.stringify(subRes.data);
-      console.log(`✅ Page ${pageId} subscribed to webhook events: ${subscribeResult}`);
+      console.log(`✅ Page ${pageId} subscribed to webhook [${subscribeFields}]: ${subscribeResult}`);
     } catch (subErr) {
       subscribeResult = 'failed: ' + (subErr.response?.data?.error?.message || subErr.message);
-      console.warn(`⚠️ Webhook subscription failed for page ${pageId}:`, subscribeResult);
-      // Don't fail the whole flow — user is connected, subscription can be retried
+      console.error(`❌ Webhook subscription FAILED for page ${pageId}:`, subErr.response?.data || subErr.message);
+    }
+
+    // For Instagram: verify we got the IG account ID (critical for webhook routing)
+    if (platform === 'instagram') {
+      if (platformData.igAccountId) {
+        console.log(`✅ IG ready: igAccountId=${platformData.igAccountId} username=@${platformData.igUsername} subscribeResult=${subscribeResult}`);
+      } else {
+        console.error('❌ CRITICAL: No igAccountId found. Check instagram_business_account is linked to the Facebook Page.');
+      }
     }
 
     return res.send(buildCallbackPage(true, platform, null, { ...platformData, subscribeResult }));

@@ -141,21 +141,25 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
 
       if (modelName !== 'gemini-2.0-flash') {
         console.log(`⚠️ Used fallback model: ${modelName} for tenant ${tenantConfig.storeName || '?'}`);
+      } else {
+        console.log(`✅ Gemini reply via ${modelName} (${reply.length} chars)`);
       }
 
       return { reply, orderData };
 
     } catch (err) {
-      const isQuota   = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
-      const isNotFound = err.message?.includes('404') || err.message?.includes('not found') || err.message?.includes('NOT_FOUND');
-      if (isQuota || isNotFound) {
-        console.warn(`⚠️ Gemini ${isQuota ? 'quota' : 'not found'} for ${modelName}, trying next...`);
-        continue;
-      }
-      console.error(`❌ Gemini error [${modelName}]:`, err.message);
+      const errMsg = err.message || String(err);
+      const isQuota    = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED');
+      const isNotFound = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND');
+      const isBadKey   = errMsg.includes('400') || errMsg.includes('API_KEY') || errMsg.includes('invalid');
+      console.error(`❌ Gemini [${modelName}] failed (${isQuota ? 'QUOTA' : isNotFound ? 'NOT_FOUND' : isBadKey ? 'BAD_KEY' : 'ERROR'}): ${errMsg.substring(0, 200)}`);
       continue;
     }
   }
+
+  // All models failed — log clearly so it's visible in Render
+  console.error(`❌ ALL Gemini models failed for tenant "${tenantConfig.storeName}". Check GEMINI_API_KEY in Render env vars.`);
+  console.error(`   Key present: ${process.env.GEMINI_API_KEY ? 'YES (length=' + process.env.GEMINI_API_KEY.length + ')' : 'NO — MISSING!'}`);
 
   return {
     reply: 'مرحباً! نحن هنا لخدمتك 😊 حاول مرة أخرى لو سمحت.',

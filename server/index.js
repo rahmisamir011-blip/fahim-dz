@@ -151,47 +151,77 @@ app.get('/api/debug/subscribe', async (req, res) => {
     return res.status(400).json({ error: 'pageId and token are required' });
   }
   const axios = require('axios');
-  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v19.0';
+  const apiVersion = process.env.META_API_VERSION || 'v21.0';
+  const FIELDS = 'messages,messaging_postbacks'; // minimal set that always works
   const results = {};
 
-  // 1. Check current subscriptions
   try {
     const checkRes = await axios.get(
       `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
       { params: { access_token: token } }
     );
-    results.currentSubscriptions = checkRes.data;
-  } catch (e) {
-    results.checkError = e.response?.data || e.message;
-  }
+    results.before = checkRes.data;
+  } catch (e) { results.checkError = e.response?.data || e.message; }
 
-  // 2. Force subscribe
   try {
     const subRes = await axios.post(
       `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
       null,
-      { params: {
-        subscribed_fields: 'messages,messaging_postbacks,messaging_optins,message_reads',
-        access_token: token,
-      }}
+      { params: { subscribed_fields: FIELDS, access_token: token } }
     );
     results.subscribeResult = subRes.data;
-  } catch (e) {
-    results.subscribeError = e.response?.data || e.message;
-  }
+  } catch (e) { results.subscribeError = e.response?.data || e.message; }
 
-  // 3. Verify after subscribe
   try {
     const verifyRes = await axios.get(
       `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
       { params: { access_token: token } }
     );
-    results.afterSubscription = verifyRes.data;
-  } catch (e) {
-    results.verifyError = e.response?.data || e.message;
-  }
+    results.after = verifyRes.data;
+  } catch (e) { results.verifyError = e.response?.data || e.message; }
 
   res.json(results);
+});
+
+// ── Debug: Re-subscribe ALL tenant platforms ───────────────────
+// Usage: GET /api/debug/resubscribe-all
+// Fixes existing connected accounts that had bad subscription fields
+app.get('/api/debug/resubscribe-all', async (req, res) => {
+  const axios = require('axios');
+  const { getDb, isFirebaseReady } = require('./config/firebase');
+  if (!isFirebaseReady()) return res.json({ error: 'Firebase not ready' });
+
+  const apiVersion = process.env.META_API_VERSION || 'v21.0';
+  const FIELDS = 'messages,messaging_postbacks';
+  const db = getDb();
+  const results = [];
+
+  try {
+    const usersSnap = await db.collection('users').get();
+    for (const userDoc of usersSnap.docs) {
+      const userId = userDoc.id;
+      const platsSnap = await db.collection('users').doc(userId).collection('platforms').get();
+      for (const platDoc of platsSnap.docs) {
+        const d = platDoc.data();
+        const pageId = d.pageId;
+        const token  = d.accessToken || d.pageAccessToken;
+        if (!pageId || !token) { results.push({ userId, platform: platDoc.id, status: 'skipped: no pageId or token' }); continue; }
+        try {
+          const r = await axios.post(
+            `https://graph.facebook.com/${apiVersion}/${pageId}/subscribed_apps`,
+            null,
+            { params: { subscribed_fields: FIELDS, access_token: token } }
+          );
+          results.push({ userId, platform: platDoc.id, pageId, status: r.data?.success ? '✅ ok' : JSON.stringify(r.data) });
+        } catch (e) {
+          results.push({ userId, platform: platDoc.id, pageId, status: '❌ ' + (e.response?.data?.error?.message || e.message) });
+        }
+      }
+    }
+    res.json({ resubscribed: results.length, results });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Debug: Show Firestore webhook registry ─────────────────────
