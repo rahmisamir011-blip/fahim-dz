@@ -60,47 +60,79 @@ async function connectIgPrivate(userId, username, password) {
     return { success: true, username: account.username, fullName: account.full_name };
 
   } catch (err) {
-    const msg = err.message || '';
+    const msg      = err.message || '';
+    const msgLower = msg.toLowerCase();
+    const status   = err.response?.statusCode || err.response?.status;
+    const body     = err.response?.body || {};
+
+    console.error('[IGP] connect error:', err.name, status, msg.substring(0, 200));
 
     // ── Account linked to Facebook login ──────────────────────────
-    // Instagram returns 400 "You can log in with your linked Facebook account"
+    if (msgLower.includes('facebook') || msgLower.includes('linked')) {
+      return {
+        success: false,
+        error:
+          '⚠️ هذا الحساب مرتبط بفيسبوك.\n\n' +
+          'افصل الحساب عن فيسبوك من:\n' +
+          'Instagram → الإعدادات → المركز → الحسابات المرتبطة → افصل',
+      };
+    }
+
+    // ── Suspicious login / email verification challenge ───────────
+    // "We can send you an email to help you get back into your account"
     if (
-      (err.response?.statusCode === 400 || err.response?.body?.status === 'fail') &&
-      (msg.toLowerCase().includes('facebook') || msg.toLowerCase().includes('linked'))
+      msgLower.includes('send you an email') ||
+      msgLower.includes('get back into your account') ||
+      msgLower.includes('verify') ||
+      msgLower.includes('suspicious') ||
+      msgLower.includes('unusual')
     ) {
       return {
         success: false,
-        facebookLinked: true,
+        suspicious: true,
         error:
-          '⚠️ هذا الحساب مرتبط بفيسبوك وهو غير متوافق مع الاتصال المباشر.\n\n' +
-          'الحل: استخدم حساب Instagram مستقل (مسجّل بالبريد الإلكتروني أو رقم الهاتف فقط)، ' +
-          'أو افصل الحساب عن فيسبوك من إعدادات Instagram ← الحسابات المرتبطة.',
+          '🔐 Instagram اكتشف محاولة دخول مشبوهة من سيرفر خارجي.\n\n' +
+          'الحل:\n' +
+          '1. افتح تطبيق Instagram على هاتفك\n' +
+          '2. ابحث عن إشعار أمني أو بريد إلكتروني من Instagram\n' +
+          '3. اضغط "السماح بتسجيل الدخول"\n' +
+          '4. ارجع وحاول الربط مرة أخرى',
       };
     }
 
     // ── 2FA / Checkpoint ──────────────────────────────────────────
-    if (err.name === 'IgCheckpointError') {
+    if (
+      err.name === 'IgCheckpointError' ||
+      msgLower.includes('checkpoint') ||
+      msgLower.includes('challenge')
+    ) {
       return {
         success:    false,
         checkpoint: true,
         error:
-          '📱 Instagram طلب تأكيد الهوية (2FA).\n' +
+          '📱 Instagram طلب تأكيد الهوية.\n' +
           'افتح تطبيق Instagram على هاتفك، وافق على طلب تسجيل الدخول، ثم حاول مرة أخرى بعد دقيقة.',
       };
     }
 
-    // ── Wrong password / locked ───────────────────────────────────
+    // ── Wrong password / account locked ──────────────────────────
     if (
       err.name === 'IgLoginRequiredError' ||
-      msg.includes('login_required') ||
-      msg.includes('password') ||
-      msg.includes('incorrect')
+      msgLower.includes('login_required') ||
+      msgLower.includes('password') ||
+      msgLower.includes('incorrect') ||
+      msgLower.includes('bad_password')
     ) {
-      return { success: false, error: '❌ كلمة السر غير صحيحة أو الحساب محظور مؤقتاً. تحقق من بيانات الدخول وحاول مجدداً.' };
+      return { success: false, error: '❌ كلمة السر غير صحيحة أو الحساب محظور مؤقتاً.' };
     }
 
-    console.error('[IGP] connect error:', msg);
-    return { success: false, error: msg || 'خطأ غير معروف — حاول مرة أخرى.' };
+    // ── Rate limited ──────────────────────────────────────────────
+    if (status === 429 || msgLower.includes('too many') || msgLower.includes('rate')) {
+      return { success: false, error: '⏳ محاولات كثيرة — انتظر 10 دقائق ثم حاول مجدداً.' };
+    }
+
+    // ── Generic fallback ──────────────────────────────────────────
+    return { success: false, error: `❌ خطأ في الاتصال: ${msg.substring(0, 120)}` };
   }
 }
 
