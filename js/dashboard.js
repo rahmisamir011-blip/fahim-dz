@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
     loadDashboardStats(),
     loadPlatforms(),
+    loadIgPrivateStatus(),   // Instagram Private API
     loadOrdersPage(),
     loadProductsPage(),
     loadInboxPage(),
@@ -669,7 +670,7 @@ window.disconnectPlatform = async function(platformKey) {
 };
 
 
-// ── Fallback: show setup guide if Meta App not configured ─────────────────
+// ── Fallback: show setup guide if Meta App not configured -────────────────
 function showConnectionGuide(platform) {
   const names = { instagram: 'انستغرام', facebook: 'فيسبوك', whatsapp: 'واتساب' };
   const steps = [
@@ -1271,4 +1272,164 @@ const FahimBot = {
     const arr = this.responses[type] || this.responses.unknown;
     return arr[Math.floor(Math.random() * arr.length)];
   }
+};
+
+
+// ══════════════════════════════════════════════════════════════
+// INSTAGRAM PRIVATE API (IGP) — connect without Meta verification
+// ══════════════════════════════════════════════════════════════
+
+/** Load and display current IGP connection status */
+async function loadIgPrivateStatus() {
+  try {
+    const data = await apiFetch('/api/ig-private/status');
+    if (!data?.connected) return;
+
+    // Update UI to show connected state
+    const handleEl  = document.getElementById('igp-handle');
+    const connectBtn = document.getElementById('connect-igp');
+    const discBtn   = document.getElementById('disconnect-igp');
+    const row       = document.getElementById('row-igp');
+
+    if (handleEl)   handleEl.textContent = `@${data.username}`;
+    if (connectBtn) {
+      connectBtn.textContent = '✅ مربوط';
+      connectBtn.style.background = '#e8f5e9';
+      connectBtn.style.color = '#2e7d32';
+      connectBtn.style.border = '1px solid #a5d6a7';
+      connectBtn.disabled = true;
+      connectBtn.onclick = null;
+    }
+    if (discBtn) discBtn.style.display = 'inline-flex';
+    if (row) row.style.background = 'linear-gradient(to left, #f0fdf4, #fdf4ff)';
+
+    // Warn if session expired
+    if (data.disconnectReason) {
+      Toast.show(`⚠️ Instagram Direct: ${data.disconnectReason}`, 'warning');
+    }
+
+  } catch (err) {
+    console.warn('[IGP] status check error:', err.message);
+  }
+}
+
+/** Open the credentials modal */
+window.openIgpConnectModal = function() {
+  const modal = document.getElementById('igp-connect-modal');
+  const errEl = document.getElementById('igp-connect-error');
+  if (errEl) errEl.style.display = 'none';
+  document.getElementById('igp-username').value = '';
+  document.getElementById('igp-password').value = '';
+  if (modal) modal.style.display = 'flex';
+};
+
+/** Submit credentials and connect */
+window.doConnectIgPrivate = async function() {
+  const username = document.getElementById('igp-username')?.value.trim();
+  const password = document.getElementById('igp-password')?.value;
+  const errEl    = document.getElementById('igp-connect-error');
+  const btn      = document.getElementById('igp-connect-btn');
+
+  if (!username || !password) {
+    if (errEl) { errEl.textContent = 'الرجاء إدخال اسم المستخدم وكلمة السر.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ جارٍ تسجيل الدخول...';
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    const res = await apiFetch('/api/ig-private/connect', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (res?.success) {
+      document.getElementById('igp-connect-modal').style.display = 'none';
+      Toast.show(`✅ تم ربط @${res.username} — الوكيل سيبدأ الرد خلال دقيقة!`, 'success');
+
+      // Update UI
+      const handleEl   = document.getElementById('igp-handle');
+      const connectBtn = document.getElementById('connect-igp');
+      const discBtn    = document.getElementById('disconnect-igp');
+      const row        = document.getElementById('row-igp');
+
+      if (handleEl)   handleEl.textContent = `@${res.username}`;
+      if (connectBtn) {
+        connectBtn.textContent = '✅ مربوط';
+        connectBtn.style.background = '#e8f5e9';
+        connectBtn.style.color = '#2e7d32';
+        connectBtn.style.border = '1px solid #a5d6a7';
+        connectBtn.disabled = true;
+        connectBtn.onclick = null;
+      }
+      if (discBtn) discBtn.style.display = 'inline-flex';
+      if (row) row.style.background = 'linear-gradient(to left, #f0fdf4, #fdf4ff)';
+
+    } else {
+      const msg = res?.checkpoint
+        ? '⚠️ ' + (res.error || 'تأكيد هوية Instagram مطلوب. افتح تطبيق Instagram وأكد محاولة الدخول، ثم حاول مرة أخرى.')
+        : (res?.error || 'فشل الاتصال. تحقق من كلمة السر وحاول مرة أخرى.');
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    }
+
+  } catch (err) {
+    if (errEl) { errEl.textContent = 'خطأ في الاتصال: ' + err.message; errEl.style.display = 'block'; }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ربط ⚡';
+  }
+};
+
+/** Disconnect IGP */
+window.disconnectIgPrivate = async function() {
+  // Inline confirm
+  const confirmDiv = document.createElement('div');
+  confirmDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;padding:28px 32px;box-shadow:0 20px 60px rgba(0,0,0,0.2);z-index:99999;text-align:center;font-family:Cairo,sans-serif;min-width:280px;direction:rtl';
+  confirmDiv.innerHTML = `
+    <div style="font-size:2rem;margin-bottom:8px">⚠️</div>
+    <div style="font-size:1.1rem;font-weight:700;color:#1a2236;margin-bottom:8px">قطع الاتصال</div>
+    <div style="color:#64748b;margin-bottom:20px">هل تريد قطع اتصال Instagram Direct؟</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="igp-disc-yes" style="background:#dc3545;color:white;border:none;border-radius:10px;padding:10px 24px;font-family:Cairo,sans-serif;font-size:0.9rem;cursor:pointer;font-weight:700">قطع ✂️</button>
+      <button id="igp-disc-no" style="background:#f1f5f9;color:#374151;border:none;border-radius:10px;padding:10px 24px;font-family:Cairo,sans-serif;font-size:0.9rem;cursor:pointer">إلغاء</button>
+    </div>`;
+  document.body.appendChild(confirmDiv);
+
+  await new Promise(resolve => {
+    document.getElementById('igp-disc-yes').onclick = () => { confirmDiv.remove(); resolve(true); };
+    document.getElementById('igp-disc-no').onclick  = () => { confirmDiv.remove(); resolve(false); };
+  }).then(async (confirmed) => {
+    if (!confirmed) return;
+
+    Toast.show('⏳ جارٍ قطع اتصال Instagram Direct...', 'info');
+    try {
+      const res = await apiFetch('/api/ig-private/disconnect', { method: 'DELETE' });
+      if (res?.success) {
+        const handleEl   = document.getElementById('igp-handle');
+        const connectBtn = document.getElementById('connect-igp');
+        const discBtn    = document.getElementById('disconnect-igp');
+        const row        = document.getElementById('row-igp');
+
+        if (handleEl)   handleEl.textContent = 'يعمل بدون موافقة ميتا';
+        if (connectBtn) {
+          connectBtn.textContent = 'ربط ⚡';
+          connectBtn.style.background = 'linear-gradient(135deg,#a855f7,#ec4899)';
+          connectBtn.style.color = 'white';
+          connectBtn.style.border = 'none';
+          connectBtn.disabled = false;
+          connectBtn.onclick = () => openIgpConnectModal();
+        }
+        if (discBtn) discBtn.style.display = 'none';
+        if (row) row.style.background = '';
+
+        Toast.show('✅ تم قطع اتصال Instagram Direct', 'success');
+      } else {
+        Toast.show('❌ ' + (res?.error || 'فشل قطع الاتصال'), 'error');
+      }
+    } catch (err) {
+      Toast.show('❌ خطأ: ' + err.message, 'error');
+    }
+  });
 };

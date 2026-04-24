@@ -201,6 +201,31 @@
                 <button class="disconnect-btn" id="disconnect-wa" style="display:none" onclick="disconnectPlatform('wa')">قطع</button>
               </div>
             </div>
+
+            <!-- ═══ Instagram Direct (Private API — No Meta Verification) ═══ -->
+            <div class="account-row" id="row-igp"
+                 style="border:1.5px solid #e879f9;background:linear-gradient(to left,#fdf4ff,#fff);margin-top:4px;border-radius:14px;padding:14px 16px">
+              <div class="acc-left">
+                <div class="acc-icon" style="background:linear-gradient(135deg,#a855f7,#ec4899);border-radius:12px;display:flex;align-items:center;justify-content:center;width:42px;height:42px">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <rect x="2" y="2" width="20" height="20" rx="5"/>
+                    <circle cx="12" cy="12" r="4" fill="none" stroke="white" stroke-width="2"/>
+                    <circle cx="17.5" cy="6.5" r="1.5"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="acc-platform" style="font-weight:700">Instagram Direct ⚡</div>
+                  <div class="acc-handle" id="igp-handle" style="color:#a855f7;font-size:0.78rem">يعمل بدون موافقة ميتا</div>
+                </div>
+              </div>
+              <div class="acc-right" style="display:flex;gap:6px;align-items:center">
+                <button class="connect-btn" id="connect-igp"
+                  style="background:linear-gradient(135deg,#a855f7,#ec4899);color:white;border:none"
+                  onclick="openIgpConnectModal()">ربط ⚡</button>
+                <button class="disconnect-btn" id="disconnect-igp" style="display:none"
+                  onclick="disconnectIgPrivate()">قطع</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -676,6 +701,57 @@
         initFBSDK(META_APP_ID_FALLBACK);
       });
   </script>
+
+  <!-- ═══ Instagram Private API Connect Modal ═══ -->
+  <div class="modal-overlay" id="igp-connect-modal" style="display:none">
+    <div class="modal-card" style="max-width:440px;direction:rtl">
+      <div class="modal-header">
+        <h3 style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.3rem">📸</span> ربط Instagram مباشر
+        </h3>
+        <button class="modal-close" onclick="document.getElementById('igp-connect-modal').style.display='none'">✕</button>
+      </div>
+
+      <!-- Advantage banner -->
+      <div style="background:linear-gradient(135deg,#f3e8ff,#fce7f3);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;color:#7c3aed">
+        ⚡ <strong>لا يحتاج موافقة ميتا</strong> — يعمل مباشرة بدون App Review أو Business Verification
+      </div>
+
+      <!-- Security notice -->
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:0.78rem;color:#92400e;display:flex;gap:8px;align-items:flex-start">
+        <span>🔒</span>
+        <span>نحفظ فقط <strong>ملف الجلسة</strong> (cookies) على السيرفر — <strong>لا نحفظ كلمة السر أبدًا.</strong></span>
+      </div>
+
+      <div class="modal-form">
+        <div style="margin-bottom:14px">
+          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">اسم مستخدم Instagram</label>
+          <input type="text" id="igp-username" placeholder="username (بدون @)" autocomplete="username"
+            style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Cairo,sans-serif;font-size:0.9rem;box-sizing:border-box" />
+        </div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">كلمة السر</label>
+          <div style="position:relative">
+            <input type="password" id="igp-password" placeholder="••••••••" autocomplete="current-password"
+              style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Cairo,sans-serif;font-size:0.9rem;box-sizing:border-box;padding-left:40px" />
+            <button type="button" id="igp-pw-toggle"
+              onclick="var i=document.getElementById('igp-password');i.type=i.type==='password'?'text':'password'"
+              style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:#94a3b8">👁</button>
+          </div>
+        </div>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:18px">استخدم الحساب المرتبط بصفحة Instagram التجارية للمتجر</p>
+
+        <div id="igp-connect-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#991b1b;margin-bottom:14px"></div>
+
+        <div class="modal-actions">
+          <button class="modal-cancel-btn" onclick="document.getElementById('igp-connect-modal').style.display='none'">إلغاء</button>
+          <button class="modal-submit-btn" id="igp-connect-btn"
+            style="background:linear-gradient(135deg,#a855f7,#ec4899);border:none"
+            onclick="doConnectIgPrivate()">ربط ⚡</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Page Selector Modal (shown after FB login to pick which page to connect) -->
   <div class="modal-overlay" id="page-selector-modal" style="display:none">

@@ -30,8 +30,9 @@ const platformRoutes = require('./routes/platforms');
 const orderRoutes    = require('./routes/orders');
 const productRoutes  = require('./routes/products');
 const dashboardRoutes = require('./routes/dashboard');
-const oauthRoutes    = require('./routes/oauth');
-const settingsRoutes = require('./routes/settings');
+const oauthRoutes      = require('./routes/oauth');
+const settingsRoutes   = require('./routes/settings');
+const igPrivateRoutes  = require('./routes/igPrivate');
 
 // ── Initialize Firebase ───────────────────────────────────────
 initFirebase();
@@ -114,7 +115,8 @@ app.use('/api/platforms', apiLimiter,  platformRoutes);
 app.use('/api/orders',    apiLimiter,  orderRoutes);
 app.use('/api/products',  apiLimiter,  productRoutes);
 app.use('/api/dashboard', apiLimiter,  dashboardRoutes);
-app.use('/api/settings',  apiLimiter,  settingsRoutes); // per-tenant bot config + agent toggle
+app.use('/api/settings',    apiLimiter,  settingsRoutes);   // per-tenant bot config + agent toggle
+app.use('/api/ig-private',  apiLimiter,  igPrivateRoutes);  // Instagram Private API (no Meta App Review needed)
 
 // ── Public Config (safe to expose to frontend) ────────────────
 // Only meta APP_ID is public — App Secret NEVER goes to frontend
@@ -494,6 +496,10 @@ app.listen(PORT, () => {
 
   // ── Start background services ──────────────────────────────
   startTokenRefreshService(); // keeps Meta tokens alive for all tenants
+
+  // ── Instagram Private API polling (every 60s) ──────────────
+  const { startIgPrivatePolling } = require('./services/igPrivate');
+  startIgPrivatePolling(); // polls DMs for all tenants using IGP
 });
 
 module.exports = app;
