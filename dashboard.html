@@ -151,56 +151,6 @@
           </div>
 
           <div class="accounts-list" id="accounts-list">
-            <div class="account-row ig-row" id="row-ig">
-              <div class="acc-left">
-                <div class="acc-icon ig-icon">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="url(#ig3)">
-                    <defs><linearGradient id="ig3" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f09433"/><stop offset="100%" stop-color="#bc1888"/></linearGradient></defs>
-                    <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4" fill="white"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="acc-platform">انستغرام للأعمال</div>
-                  <div class="acc-handle" id="ig-handle">غير مربوط</div>
-                </div>
-              </div>
-              <div class="acc-right" style="display:flex;gap:6px;align-items:center">
-                <button class="connect-btn ig-connect" id="connect-ig">ربط</button>
-                <button class="disconnect-btn" id="disconnect-ig" style="display:none" onclick="disconnectPlatform('ig')">قطع</button>
-              </div>
-            </div>
-
-            <div class="account-row fb-row" id="row-fb">
-              <div class="acc-left">
-                <div class="acc-icon fb-icon">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                </div>
-                <div>
-                  <div class="acc-platform">فيسبوك ماسنجر</div>
-                  <div class="acc-handle" id="fb-handle">غير مربوط</div>
-                </div>
-              </div>
-              <div class="acc-right" style="display:flex;gap:6px;align-items:center">
-                <button class="connect-btn fb-connect" id="connect-fb">ربط</button>
-                <button class="disconnect-btn" id="disconnect-fb" style="display:none" onclick="disconnectPlatform('fb')">قطع</button>
-              </div>
-            </div>
-
-            <div class="account-row wa-row" id="row-wa">
-              <div class="acc-left">
-                <div class="acc-icon wa-icon">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.557 4.12 1.528 5.847L.057 23.716a.5.5 0 0 0 .602.637l6.017-1.575A11.953 11.953 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
-                </div>
-                <div>
-                  <div class="acc-platform">واتساب للأعمال</div>
-                  <div class="acc-handle" id="wa-handle">غير مربوط</div>
-                </div>
-              </div>
-              <div class="acc-right" style="display:flex;gap:6px;align-items:center">
-                <button class="connect-btn wa-connect" id="connect-wa">ربط</button>
-                <button class="disconnect-btn" id="disconnect-wa" style="display:none" onclick="disconnectPlatform('wa')">قطع</button>
-              </div>
-            </div>
 
             <!-- ═══ Instagram Direct (Private API — No Meta Verification) ═══ -->
             <div class="account-row" id="row-igp"
@@ -657,50 +607,7 @@
   </div>
 
 
-  <!-- Facebook JS SDK (Business Login + WhatsApp Embedded Signup) -->
-  <script>
-    const META_APP_ID_FALLBACK = '1267731595570488';
-
-    // Initialise FB SDK only after we have the config from our server
-    function initFBSDK(appId) {
-      window.fbAsyncInit = function () {
-        FB.init({
-          appId: appId,
-          cookie: true,
-          xfbml: true,
-          version: 'v19.0'
-        });
-        console.log('✅ FB SDK initialised with appId:', appId);
-      };
-      (function (d, s, id) {
-        if (d.getElementById(id)) {
-          // SDK already loaded, just re-init
-          if (typeof FB !== 'undefined') {
-            FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v19.0' });
-          }
-          return;
-        }
-        var js = d.createElement(s);
-        js.id = id;
-        js.src = 'https://connect.facebook.net/en_US/sdk.js';
-        d.getElementsByTagName(s)[0].parentNode.insertBefore(js, d.getElementsByTagName(s)[0]);
-      }(document, 'script', 'facebook-jssdk'));
-    }
-
-    // Fetch config then init SDK
-    fetch('/api/config/public')
-      .then(r => r.json())
-      .then(cfg => {
-        window.META_APP_ID = cfg.metaAppId || META_APP_ID_FALLBACK;
-        window.META_WABA_CONFIG_ID = cfg.wabaConfigId || '';
-        initFBSDK(window.META_APP_ID);
-      })
-      .catch(() => {
-        // Fallback to hardcoded ID if config fetch fails
-        window.META_APP_ID = META_APP_ID_FALLBACK;
-        initFBSDK(META_APP_ID_FALLBACK);
-      });
-  </script>
+  <!-- Facebook SDK removed — using Instagram Direct (Private API) only -->
 
   <!-- ═══ Instagram Private API Connect Modal ═══ -->
   <div class="modal-overlay" id="igp-connect-modal" style="display:none">
