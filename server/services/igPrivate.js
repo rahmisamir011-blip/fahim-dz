@@ -60,20 +60,47 @@ async function connectIgPrivate(userId, username, password) {
     return { success: true, username: account.username, fullName: account.full_name };
 
   } catch (err) {
-    // Handle Instagram checkpoint (2FA / suspicious-login challenge)
+    const msg = err.message || '';
+
+    // ── Account linked to Facebook login ──────────────────────────
+    // Instagram returns 400 "You can log in with your linked Facebook account"
+    if (
+      (err.response?.statusCode === 400 || err.response?.body?.status === 'fail') &&
+      (msg.toLowerCase().includes('facebook') || msg.toLowerCase().includes('linked'))
+    ) {
+      return {
+        success: false,
+        facebookLinked: true,
+        error:
+          '⚠️ هذا الحساب مرتبط بفيسبوك وهو غير متوافق مع الاتصال المباشر.\n\n' +
+          'الحل: استخدم حساب Instagram مستقل (مسجّل بالبريد الإلكتروني أو رقم الهاتف فقط)، ' +
+          'أو افصل الحساب عن فيسبوك من إعدادات Instagram ← الحسابات المرتبطة.',
+      };
+    }
+
+    // ── 2FA / Checkpoint ──────────────────────────────────────────
     if (err.name === 'IgCheckpointError') {
       return {
         success:    false,
         checkpoint: true,
-        error:      'Instagram طلب تأكيد الهوية (2FA). افتح تطبيق Instagram، وافق على الدخول، ثم حاول مرة أخرى بعد دقيقة.',
+        error:
+          '📱 Instagram طلب تأكيد الهوية (2FA).\n' +
+          'افتح تطبيق Instagram على هاتفك، وافق على طلب تسجيل الدخول، ثم حاول مرة أخرى بعد دقيقة.',
       };
     }
-    // Wrong password / account locked
-    if (err.name === 'IgLoginRequiredError' || err.message?.includes('login_required') || err.message?.includes('password')) {
-      return { success: false, error: 'كلمة السر غير صحيحة أو الحساب محظور مؤقتاً.' };
+
+    // ── Wrong password / locked ───────────────────────────────────
+    if (
+      err.name === 'IgLoginRequiredError' ||
+      msg.includes('login_required') ||
+      msg.includes('password') ||
+      msg.includes('incorrect')
+    ) {
+      return { success: false, error: '❌ كلمة السر غير صحيحة أو الحساب محظور مؤقتاً. تحقق من بيانات الدخول وحاول مجدداً.' };
     }
-    console.error('[IGP] connect error:', err.message);
-    return { success: false, error: err.message };
+
+    console.error('[IGP] connect error:', msg);
+    return { success: false, error: msg || 'خطأ غير معروف — حاول مرة أخرى.' };
   }
 }
 

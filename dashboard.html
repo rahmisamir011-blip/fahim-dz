@@ -628,9 +628,13 @@
       <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:0.78rem;color:#92400e;display:flex;gap:8px;align-items:flex-start">
         <span>🔒</span>
         <span>نحفظ فقط <strong>ملف الجلسة</strong> (cookies) على السيرفر — <strong>لا نحفظ كلمة السر أبدًا.</strong></span>
+
+      <!-- Facebook-linked warning -->
+      <div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:0.78rem;color:#7f1d1d;display:flex;gap:8px;align-items:flex-start">
+        <span style="font-size:1rem">⛔</span>
+        <span><strong>لا يعمل مع الحسابات المرتبطة بفيسبوك.</strong> استخدم حساباً مسجّلاً بالبريد الإلكتروني أو رقم الهاتف فقط.</span>
       </div>
 
-      <div class="modal-form">
         <div style="margin-bottom:14px">
           <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">اسم مستخدم Instagram</label>
           <input type="text" id="igp-username" placeholder="username (بدون @)" autocomplete="username"
@@ -648,7 +652,7 @@
         </div>
         <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:18px">استخدم الحساب المرتبط بصفحة Instagram التجارية للمتجر</p>
 
-        <div id="igp-connect-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#991b1b;margin-bottom:14px"></div>
+        <div id="igp-connect-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#991b1b;margin-bottom:14px;white-space:pre-line;line-height:1.6"></div>
 
         <div class="modal-actions">
           <button class="modal-cancel-btn" onclick="document.getElementById('igp-connect-modal').style.display='none'">إلغاء</button>
