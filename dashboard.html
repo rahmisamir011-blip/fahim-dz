@@ -611,7 +611,7 @@
 
   <!-- ═══ Instagram Private API Connect Modal ═══ -->
   <div class="modal-overlay" id="igp-connect-modal" style="display:none">
-    <div class="modal-card" style="max-width:440px;direction:rtl">
+    <div class="modal-card" style="max-width:480px;direction:rtl">
       <div class="modal-header">
         <h3 style="display:flex;align-items:center;gap:8px">
           <span style="font-size:1.3rem">📸</span> ربط Instagram مباشر
@@ -619,38 +619,53 @@
         <button class="modal-close" onclick="document.getElementById('igp-connect-modal').style.display='none'">✕</button>
       </div>
 
-      <!-- Advantage banner -->
-      <div style="background:linear-gradient(135deg,#f3e8ff,#fce7f3);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;color:#7c3aed">
-        ⚡ <strong>لا يحتاج موافقة ميتا</strong> — يعمل مباشرة بدون App Review أو Business Verification
+      <!-- Why session cookie -->
+      <div style="background:linear-gradient(135deg,#f3e8ff,#fce7f3);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:0.82rem;color:#7c3aed">
+        ⚡ <strong>لا يحتاج كلمة سر على السيرفر</strong> — أكثر أمانًا وأضمن من تسجيل الدخول المباشر
       </div>
 
-      <!-- Security notice -->
-      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:0.78rem;color:#92400e;display:flex;gap:8px;align-items:flex-start">
-        <span>🔒</span>
-        <span>نحفظ فقط <strong>ملف الجلسة</strong> (cookies) على السيرفر — <strong>لا نحفظ كلمة السر أبدًا.</strong></span>
-
-      <!-- Facebook-linked warning -->
-      <div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:0.78rem;color:#7f1d1d;display:flex;gap:8px;align-items:flex-start">
-        <span style="font-size:1rem">⛔</span>
-        <span><strong>لا يعمل مع الحسابات المرتبطة بفيسبوك.</strong> استخدم حساباً مسجّلاً بالبريد الإلكتروني أو رقم الهاتف فقط.</span>
+      <!-- How to get sessionid — step by step -->
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:0.84rem;font-weight:700;color:#1e293b;margin-bottom:10px">🔑 كيف تحصل على Session ID:</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.8rem;color:#475569">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">1</span>
+            <span>افتح <strong>instagram.com</strong> في المتصفح (Chrome أو Edge) وسجّل دخولك</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">2</span>
+            <span>اضغط <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:0.78rem">F12</kbd> لفتح Developer Tools</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">3</span>
+            <span>اضغط على تبويب <strong>Application</strong> (أو Storage) ← <strong>Cookies</strong> ← <strong>https://www.instagram.com</strong></span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">4</span>
+            <span>ابحث عن الصف <strong style="color:#7c3aed">sessionid</strong> وانسخ القيمة (Value) كاملةً</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="background:#22c55e;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">5</span>
+            <span>الصقها في الحقل أدناه ✅</span>
+          </div>
+        </div>
       </div>
 
+      <div class="modal-form">
         <div style="margin-bottom:14px">
-          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">اسم مستخدم Instagram</label>
+          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">اسم المستخدم Instagram (@username)</label>
           <input type="text" id="igp-username" placeholder="username (بدون @)" autocomplete="username"
             style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Cairo,sans-serif;font-size:0.9rem;box-sizing:border-box" />
         </div>
         <div style="margin-bottom:6px">
-          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">كلمة السر</label>
-          <div style="position:relative">
-            <input type="password" id="igp-password" placeholder="••••••••" autocomplete="current-password"
-              style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Cairo,sans-serif;font-size:0.9rem;box-sizing:border-box;padding-left:40px" />
-            <button type="button" id="igp-pw-toggle"
-              onclick="var i=document.getElementById('igp-password');i.type=i.type==='password'?'text':'password'"
-              style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:#94a3b8">👁</button>
-          </div>
+          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">
+            🔑 Session ID
+            <span style="font-weight:400;color:#94a3b8;font-size:0.78rem"> (من Cookies في المتصفح)</span>
+          </label>
+          <textarea id="igp-password" placeholder="الصق قيمة sessionid هنا..." autocomplete="off" rows="3"
+            style="width:100%;padding:10px 14px;border:1.5px solid #a855f7;border-radius:10px;font-family:monospace;font-size:0.78rem;box-sizing:border-box;resize:vertical;direction:ltr"></textarea>
         </div>
-        <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:18px">استخدم الحساب المرتبط بصفحة Instagram التجارية للمتجر</p>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:18px">⚠️ لا نحفظ الـ Session ID بشكل منفصل — نحوّله فوراً إلى ملف جلسة مشفّر</p>
 
         <div id="igp-connect-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#991b1b;margin-bottom:14px;white-space:pre-line;line-height:1.6"></div>
 
@@ -665,6 +680,7 @@
   </div>
 
   <!-- Page Selector Modal (shown after FB login to pick which page to connect) -->
+
   <div class="modal-overlay" id="page-selector-modal" style="display:none">
     <div class="modal-card" style="max-width:460px">
       <div class="modal-header">

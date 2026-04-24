@@ -17,19 +17,36 @@ const { generateReply } = require('./ai');
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Connect an Instagram account for a tenant.
- * Saves session state (NOT the password) to Firestore.
+ * Connect via Session Cookie (sessionid from browser).
+ * Most reliable — bypasses server-IP blocks entirely.
  */
-async function connectIgPrivate(userId, username, password) {
+async function connectIgPrivate(userId, username, sessionId) {
   const ig = new IgApiClient();
   ig.state.generateDevice(username.toLowerCase().trim());
 
   try {
-    await ig.simulate.preLoginFlow();
-    const account = await ig.account.login(username.trim(), password);
+    // Inject the sessionid cookie directly — no login request needed
+    await ig.state.deserializeCookieJar(
+      JSON.stringify({
+        version: 'tough-cookie@4.1.3',
+        storeType: 'MemoryCookieStore',
+        rejectPublicSuffixes: true,
+        cookies: [
+          {
+            key:      'sessionid',
+            value:    sessionId.trim(),
+            domain:   '.instagram.com',
+            path:     '/',
+            secure:   true,
+            httpOnly: true,
+            hostOnly: false,
+          },
+        ],
+      })
+    );
 
-    // Post-login simulation (non-critical)
-    try { await ig.simulate.postLoginFlow(); } catch (_) {}
+    // Verify session by fetching current user profile
+    const account = await ig.account.currentUser();
 
     const sessionState = JSON.stringify(await ig.exportState());
 
@@ -37,18 +54,17 @@ async function connectIgPrivate(userId, username, password) {
     const db = getDb();
 
     await db.collection('users').doc(userId).collection('platforms').doc('igp').set({
-      platform:      'igp',
-      username:      account.username,
-      fullName:      account.full_name || '',
-      igUserId:      String(account.pk),
-      sessionState,                     // serialised cookies — NOT the password
-      connected:     true,
-      connectedAt:   Date.now(),
-      seenMessageIds: [],               // tracks processed messages
-      lastPoll:      0,
+      platform:       'igp',
+      username:       account.username,
+      fullName:       account.full_name || '',
+      igUserId:       String(account.pk),
+      sessionState,
+      connected:      true,
+      connectedAt:    Date.now(),
+      seenMessageIds: [],
+      lastPoll:       0,
     });
 
-    // Add 'igp' to connectedPlatforms array
     const userRef  = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     const current  = userSnap.data()?.connectedPlatforms || [];
@@ -56,85 +72,39 @@ async function connectIgPrivate(userId, username, password) {
       await userRef.update({ connectedPlatforms: [...current, 'igp'] });
     }
 
-    console.log(`✅ [IGP] Connected @${account.username} for user ${userId}`);
+    console.log(`✅ [IGP] Connected @${account.username} for user ${userId} (via session cookie)`);
     return { success: true, username: account.username, fullName: account.full_name };
 
   } catch (err) {
     const msg      = err.message || '';
     const msgLower = msg.toLowerCase();
     const status   = err.response?.statusCode || err.response?.status;
-    const body     = err.response?.body || {};
 
-    console.error('[IGP] connect error:', err.name, status, msg.substring(0, 200));
+    console.error('[IGP] session-connect error:', err.name, status, msg.substring(0, 200));
 
-    // ── Account linked to Facebook login ──────────────────────────
-    if (msgLower.includes('facebook') || msgLower.includes('linked')) {
-      return {
-        success: false,
-        error:
-          '⚠️ هذا الحساب مرتبط بفيسبوك.\n\n' +
-          'افصل الحساب عن فيسبوك من:\n' +
-          'Instagram → الإعدادات → المركز → الحسابات المرتبطة → افصل',
-      };
-    }
-
-    // ── Suspicious login / email verification challenge ───────────
-    // "We can send you an email to help you get back into your account"
+    // Bad / expired session
     if (
-      msgLower.includes('send you an email') ||
-      msgLower.includes('get back into your account') ||
-      msgLower.includes('verify') ||
-      msgLower.includes('suspicious') ||
-      msgLower.includes('unusual')
-    ) {
-      return {
-        success: false,
-        suspicious: true,
-        error:
-          '🔐 Instagram اكتشف محاولة دخول مشبوهة من سيرفر خارجي.\n\n' +
-          'الحل:\n' +
-          '1. افتح تطبيق Instagram على هاتفك\n' +
-          '2. ابحث عن إشعار أمني أو بريد إلكتروني من Instagram\n' +
-          '3. اضغط "السماح بتسجيل الدخول"\n' +
-          '4. ارجع وحاول الربط مرة أخرى',
-      };
-    }
-
-    // ── 2FA / Checkpoint ──────────────────────────────────────────
-    if (
-      err.name === 'IgCheckpointError' ||
-      msgLower.includes('checkpoint') ||
-      msgLower.includes('challenge')
-    ) {
-      return {
-        success:    false,
-        checkpoint: true,
-        error:
-          '📱 Instagram طلب تأكيد الهوية.\n' +
-          'افتح تطبيق Instagram على هاتفك، وافق على طلب تسجيل الدخول، ثم حاول مرة أخرى بعد دقيقة.',
-      };
-    }
-
-    // ── Wrong password / account locked ──────────────────────────
-    if (
-      err.name === 'IgLoginRequiredError' ||
       msgLower.includes('login_required') ||
-      msgLower.includes('password') ||
-      msgLower.includes('incorrect') ||
-      msgLower.includes('bad_password')
+      msgLower.includes('not authenticated') ||
+      msgLower.includes('session') ||
+      status === 401 || status === 403
     ) {
-      return { success: false, error: '❌ كلمة السر غير صحيحة أو الحساب محظور مؤقتاً.' };
+      return {
+        success: false,
+        error:
+          '❌ الـ Session ID غير صالح أو انتهت صلاحيته.\n' +
+          'تأكد أنك نسخت القيمة الصحيحة من المتصفح وأن حسابك لا يزال مسجلاً دخوله على Instagram.com',
+      };
     }
 
-    // ── Rate limited ──────────────────────────────────────────────
     if (status === 429 || msgLower.includes('too many') || msgLower.includes('rate')) {
-      return { success: false, error: '⏳ محاولات كثيرة — انتظر 10 دقائق ثم حاول مجدداً.' };
+      return { success: false, error: '⏳ محاولات كثيرة — انتظر 5 دقائق ثم حاول مجدداً.' };
     }
 
-    // ── Generic fallback ──────────────────────────────────────────
-    return { success: false, error: `❌ خطأ في الاتصال: ${msg.substring(0, 120)}` };
+    return { success: false, error: `❌ فشل الاتصال: ${msg.substring(0, 150)}` };
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // Poll DMs for a single tenant
