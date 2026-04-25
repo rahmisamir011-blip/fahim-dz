@@ -87,7 +87,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
     loadDashboardStats(),
     loadPlatforms(),
-    loadIgPrivateStatus(),   // Instagram Private API
     loadOrdersPage(),
     loadProductsPage(),
     loadInboxPage(),
@@ -303,7 +302,7 @@ async function loadPlatforms() {
 
     data.platforms.forEach(p => {
       const platform = typeToFull[p.type] || p.type;
-      const displayName = p.username || p.pageName || p.displayPhone || 'مربوط';
+      const displayName = p.username || p.igUsername || p.pageName || p.displayPhone || 'مربوط';
 
       if (p.hasToken === false) {
         // Connected in registry but token is missing — show as needs-reconnect
@@ -320,7 +319,7 @@ async function loadPlatforms() {
         }
         if (discBtn) discBtn.style.display = 'inline-flex';
       } else {
-        updatePlatformUI(platform, { pageName: displayName });
+        updatePlatformUI(platform, { pageName: displayName, igUsername: p.igUsername || p.username || '' });
       }
     });
 

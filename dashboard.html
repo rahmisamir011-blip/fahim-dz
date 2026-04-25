@@ -152,11 +152,11 @@
 
           <div class="accounts-list" id="accounts-list">
 
-            <!-- ═══ Instagram Direct (Private API — No Meta Verification) ═══ -->
-            <div class="account-row" id="row-igp"
-                 style="border:1.5px solid #e879f9;background:linear-gradient(to left,#fdf4ff,#fff);margin-top:4px;border-radius:14px;padding:14px 16px">
+            <!-- ═══ Instagram via Meta OAuth ═══ -->
+            <div class="account-row" id="row-ig"
+                 style="border:1.5px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:8px;transition:all .3s">
               <div class="acc-left">
-                <div class="acc-icon" style="background:linear-gradient(135deg,#a855f7,#ec4899);border-radius:12px;display:flex;align-items:center;justify-content:center;width:42px;height:42px">
+                <div class="acc-icon" style="background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);border-radius:12px;display:flex;align-items:center;justify-content:center;width:42px;height:42px">
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
                     <rect x="2" y="2" width="20" height="20" rx="5"/>
                     <circle cx="12" cy="12" r="4" fill="none" stroke="white" stroke-width="2"/>
@@ -164,18 +164,40 @@
                   </svg>
                 </div>
                 <div>
-                  <div class="acc-platform" style="font-weight:700">Instagram Direct ⚡</div>
-                  <div class="acc-handle" id="igp-handle" style="color:#a855f7;font-size:0.78rem">يعمل بدون موافقة ميتا</div>
+                  <div class="acc-platform" style="font-weight:700">Instagram</div>
+                  <div class="acc-handle" id="ig-handle" style="color:#94a3b8;font-size:0.78rem">غير مربوط</div>
                 </div>
               </div>
               <div class="acc-right" style="display:flex;gap:6px;align-items:center">
-                <button class="connect-btn" id="connect-igp"
-                  style="background:linear-gradient(135deg,#a855f7,#ec4899);color:white;border:none"
-                  onclick="openIgpConnectModal()">ربط ⚡</button>
-                <button class="disconnect-btn" id="disconnect-igp" style="display:none"
-                  onclick="disconnectIgPrivate()">قطع</button>
+                <button class="connect-btn" id="connect-ig"
+                  onclick="connectWithFacebook('instagram')">ربط</button>
+                <button class="disconnect-btn" id="disconnect-ig" style="display:none"
+                  onclick="disconnectPlatform('ig')">قطع</button>
               </div>
             </div>
+
+            <!-- ═══ Facebook Messenger via Meta OAuth ═══ -->
+            <div class="account-row" id="row-fb"
+                 style="border:1.5px solid #e2e8f0;border-radius:14px;padding:14px 16px;transition:all .3s">
+              <div class="acc-left">
+                <div class="acc-icon" style="background:linear-gradient(135deg,#0866ff,#0084ff);border-radius:12px;display:flex;align-items:center;justify-content:center;width:42px;height:42px">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.936 1.444 5.56 3.706 7.28V22l3.38-1.858C10.07 20.38 11.013 20.5 12 20.5c5.523 0 10-4.145 10-9.257S17.523 2 12 2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="acc-platform" style="font-weight:700">Facebook Messenger</div>
+                  <div class="acc-handle" id="fb-handle" style="color:#94a3b8;font-size:0.78rem">غير مربوط</div>
+                </div>
+              </div>
+              <div class="acc-right" style="display:flex;gap:6px;align-items:center">
+                <button class="connect-btn" id="connect-fb"
+                  onclick="connectWithFacebook('facebook')">ربط</button>
+                <button class="disconnect-btn" id="disconnect-fb" style="display:none"
+                  onclick="disconnectPlatform('fb')">قطع</button>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -607,79 +629,8 @@
   </div>
 
 
-  <!-- Facebook SDK removed — using Instagram Direct (Private API) only -->
+  <!-- Page Selector Modal — shown after OAuth to let user pick their Facebook Page -->
 
-  <!-- ═══ Instagram Private API Connect Modal ═══ -->
-  <div class="modal-overlay" id="igp-connect-modal" style="display:none">
-    <div class="modal-card" style="max-width:480px;direction:rtl">
-      <div class="modal-header">
-        <h3 style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:1.3rem">📸</span> ربط Instagram مباشر
-        </h3>
-        <button class="modal-close" onclick="document.getElementById('igp-connect-modal').style.display='none'">✕</button>
-      </div>
-
-      <!-- Why session cookie -->
-      <div style="background:linear-gradient(135deg,#f3e8ff,#fce7f3);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:0.82rem;color:#7c3aed">
-        ⚡ <strong>لا يحتاج كلمة سر على السيرفر</strong> — أكثر أمانًا وأضمن من تسجيل الدخول المباشر
-      </div>
-
-      <!-- How to get sessionid — step by step -->
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:16px">
-        <div style="font-size:0.84rem;font-weight:700;color:#1e293b;margin-bottom:10px">🔑 كيف تحصل على Session ID:</div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.8rem;color:#475569">
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">1</span>
-            <span>افتح <strong>instagram.com</strong> في المتصفح (Chrome أو Edge) وسجّل دخولك</span>
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">2</span>
-            <span>اضغط <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:0.78rem">F12</kbd> لفتح Developer Tools</span>
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">3</span>
-            <span>اضغط على تبويب <strong>Application</strong> (أو Storage) ← <strong>Cookies</strong> ← <strong>https://www.instagram.com</strong></span>
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">4</span>
-            <span>ابحث عن الصف <strong style="color:#7c3aed">sessionid</strong> وانسخ القيمة (Value) كاملةً</span>
-          </div>
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            <span style="background:#22c55e;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0">5</span>
-            <span>الصقها في الحقل أدناه ✅</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-form">
-        <div style="margin-bottom:14px">
-          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">اسم المستخدم Instagram (@username)</label>
-          <input type="text" id="igp-username" placeholder="username (بدون @)" autocomplete="username"
-            style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Cairo,sans-serif;font-size:0.9rem;box-sizing:border-box" />
-        </div>
-        <div style="margin-bottom:6px">
-          <label style="font-size:0.85rem;font-weight:600;color:#374151;display:block;margin-bottom:6px">
-            🔑 Session ID
-            <span style="font-weight:400;color:#94a3b8;font-size:0.78rem"> (من Cookies في المتصفح)</span>
-          </label>
-          <textarea id="igp-password" placeholder="الصق قيمة sessionid هنا..." autocomplete="off" rows="3"
-            style="width:100%;padding:10px 14px;border:1.5px solid #a855f7;border-radius:10px;font-family:monospace;font-size:0.78rem;box-sizing:border-box;resize:vertical;direction:ltr"></textarea>
-        </div>
-        <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:18px">⚠️ لا نحفظ الـ Session ID بشكل منفصل — نحوّله فوراً إلى ملف جلسة مشفّر</p>
-
-        <div id="igp-connect-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#991b1b;margin-bottom:14px;white-space:pre-line;line-height:1.6"></div>
-
-        <div class="modal-actions">
-          <button class="modal-cancel-btn" onclick="document.getElementById('igp-connect-modal').style.display='none'">إلغاء</button>
-          <button class="modal-submit-btn" id="igp-connect-btn"
-            style="background:linear-gradient(135deg,#a855f7,#ec4899);border:none"
-            onclick="doConnectIgPrivate()">ربط ⚡</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Page Selector Modal (shown after FB login to pick which page to connect) -->
 
   <div class="modal-overlay" id="page-selector-modal" style="display:none">
     <div class="modal-card" style="max-width:460px">
