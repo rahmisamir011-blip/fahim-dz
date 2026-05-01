@@ -222,10 +222,10 @@ router.get('/callback', async (req, res) => {
     }
 
     // 6. Subscribe page to Meta webhook events
-    // IMPORTANT: Only use fields the app is approved for.
-    // story_insights/mentions require special review — including them causes
-    // the ENTIRE subscription to silently fail, breaking IG message delivery.
-    const subscribeFields = 'messages,messaging_postbacks';
+    // IMPORTANT: Only use 'messages' — messaging_postbacks requires pages_messaging
+    // advanced permission which needs App Review. Using just 'messages' works for
+    // both Instagram DMs and Facebook Messenger in Development mode for testers.
+    const subscribeFields = 'messages';
 
     let subscribeResult = 'skipped';
     try {
