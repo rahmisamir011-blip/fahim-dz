@@ -75,30 +75,40 @@ async function refreshAllExpiringTokens() {
           try {
             const newTokenData = await refreshToken(token);
             const newToken   = newTokenData.access_token;
-            const newExpiry  = Date.now() + (newTokenData.expires_in * 1000);
+            // Guard: expires_in may be missing — default to 60 days
+            const expiresIn  = (typeof newTokenData.expires_in === 'number' && newTokenData.expires_in > 0)
+              ? newTokenData.expires_in
+              : 60 * 24 * 3600; // 60 days fallback
+            const newExpiry  = Date.now() + (expiresIn * 1000);
 
             await platDoc.ref.update({
-              longLivedToken:  newToken,
-              accessToken:     newToken,
-              pageAccessToken: newToken,
-              tokenExpiry:     newExpiry,
+              longLivedToken:   newToken,
+              accessToken:      newToken,
+              pageAccessToken:  newToken,
+              tokenExpiry:      newExpiry,
               tokenRefreshedAt: Date.now(),
             });
 
-            console.log(`✅ Token refreshed: userId=${userId} platform=${platDoc.id} expires=${new Date(newExpiry).toISOString()}`);
+            // Safe log — newExpiry is always a valid number now
+            const expiryStr = new Date(newExpiry).toISOString();
+            console.log(`✅ Token refreshed: userId=${userId} platform=${platDoc.id} expires=${expiryStr}`);
             refreshed++;
 
           } catch (tokenErr) {
-            // Token may be invalid/expired — mark platform as needing reconnect
+            // Only mark as needs_reconnect for actual Meta auth errors
             const errMsg = tokenErr.response?.data?.error?.message || tokenErr.message;
+            const httpStatus = tokenErr.response?.status;
             console.warn(`⚠️ Token refresh failed: userId=${userId} platform=${platDoc.id}: ${errMsg}`);
 
-            // If error is "token has expired" or "invalid token" → mark as needs_reconnect
-            const isExpiredError = errMsg.includes('expired') || errMsg.includes('invalid') || errMsg.includes('Invalid');
-            if (isExpiredError) {
+            // Only mark as needs_reconnect for real auth errors (4xx from Meta)
+            // — NOT for local JS errors like "Invalid time value"
+            const isMetaAuthError = httpStatus >= 400 && httpStatus < 500
+              && (errMsg.includes('expired') || errMsg.includes('Invalid OAuth') || errMsg.includes('OAuthException'));
+
+            if (isMetaAuthError) {
               await platDoc.ref.update({
-                active:       false,
-                needsReconnect: true,
+                active:          false,
+                needsReconnect:  true,
                 reconnectReason: errMsg,
               });
               console.warn(`⚠️ Marked platform as needs_reconnect: ${userId}/${platDoc.id}`);
