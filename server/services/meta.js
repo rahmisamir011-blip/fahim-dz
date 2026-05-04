@@ -223,6 +223,76 @@ async function getUserPages(userToken) {
   }
 }
 
+// ============================================================
+// PAGE POSTS — for AI context awareness
+// ============================================================
+
+/**
+ * Fetch recent Facebook Page posts (text + image captions)
+ * @param {string} pageId      - Facebook Page ID
+ * @param {string} accessToken - Page access token
+ * @param {number} limit       - Max posts to fetch (default 8)
+ * @returns {Promise<Array<{message, imageUrl, createdTime}>>}
+ */
+async function getPagePosts(pageId, accessToken, limit = 8) {
+  try {
+    const res = await axios.get(
+      `${META_BASE}/${META_VERSION}/${pageId}/posts`,
+      {
+        params: {
+          fields: 'message,full_picture,created_time,attachments{description,title,type}',
+          limit,
+          access_token: accessToken,
+        },
+      }
+    );
+    return (res.data.data || [])
+      .filter(p => p.message || p.attachments?.data?.[0]?.description)
+      .map(p => ({
+        message:     p.message || p.attachments?.data?.[0]?.description || '',
+        imageUrl:    p.full_picture || null,
+        title:       p.attachments?.data?.[0]?.title || null,
+        createdTime: p.created_time,
+      }));
+  } catch (err) {
+    console.warn('⚠️ getPagePosts failed:', err.response?.data?.error?.message || err.message);
+    return [];
+  }
+}
+
+/**
+ * Fetch recent Instagram Business media captions
+ * @param {string} igAccountId - IG Business Account ID
+ * @param {string} accessToken - Page access token (linked to IG)
+ * @param {number} limit       - Max posts to fetch (default 8)
+ * @returns {Promise<Array<{caption, mediaType, mediaUrl, timestamp}>>}
+ */
+async function getIgMediaPosts(igAccountId, accessToken, limit = 8) {
+  try {
+    const res = await axios.get(
+      `${META_BASE}/${META_VERSION}/${igAccountId}/media`,
+      {
+        params: {
+          fields: 'caption,media_type,media_url,thumbnail_url,timestamp',
+          limit,
+          access_token: accessToken,
+        },
+      }
+    );
+    return (res.data.data || [])
+      .filter(m => m.caption || m.media_type)
+      .map(m => ({
+        caption:   m.caption   || '',
+        mediaType: m.media_type || 'IMAGE',
+        mediaUrl:  m.media_url  || m.thumbnail_url || null,
+        timestamp: m.timestamp,
+      }));
+  } catch (err) {
+    console.warn('⚠️ getIgMediaPosts failed:', err.response?.data?.error?.message || err.message);
+    return [];
+  }
+}
+
 module.exports = {
   sendInstagramMessage,
   sendFacebookMessage,
@@ -232,4 +302,6 @@ module.exports = {
   getFacebookUser,
   getLongLivedToken,
   getUserPages,
+  getPagePosts,
+  getIgMediaPosts,
 };

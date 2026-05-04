@@ -23,8 +23,9 @@ function getGenAI() {
  * Build a fully personalised system prompt for each tenant
  * @param {object} tenantConfig - from Firestore users/{userId}
  * @param {Array}  products     - from Firestore users/{userId}/products
+ * @param {Array}  posts        - recent page/IG posts for context awareness
  */
-function buildSystemPrompt(tenantConfig = {}, products = []) {
+function buildSystemPrompt(tenantConfig = {}, products = [], posts = []) {
   const botName   = tenantConfig.botName    || 'فهيم';
   const storeName = tenantConfig.storeName  || 'المتجر';
   const language  = tenantConfig.language   || 'dz'; // dz=darija, ar=arabic, fr=french
@@ -41,9 +42,10 @@ ${langInstructions[language] || langInstructions.dz}
 
 **مهمتك الرئيسية:**
 - الرد على استفسارات العملاء عن المنتجات (السعر، الوصف، التوفر)
+- إذا سأل الزبون عن منشور أو صورة أو عرض شفته على الصفحة، ارجع للمنشورات الأخيرة أدناه وأجب بناءً عليها
 - تثبيت الطلبيات بجمع: الاسم الكامل، رقم الهاتف، الولاية، المنتج، والكمية
 - إذا طلب العميل إلغاء أو تعديل طلب، حوله للدعم البشري
-- لا تخترع معلومات عن منتجات غير موجودة في القائمة المعطاة
+- لا تخترع معلومات عن منتجات غير موجودة في القائمة المعطاة أو في المنشورات
 - اذكر اسم المتجر "${storeName}" عند التعريف بنفسك
 
 **أسلوب التواصل:**
@@ -77,6 +79,24 @@ ${langInstructions[language] || langInstructions.dz}
     prompt += '\n\n**ملاحظة:** لا توجد منتجات مُدخلة بعد. يمكنك الإجابة على الأسئلة العامة وإحالة العميل للتواصل المباشر.';
   }
 
+  // Recent page posts — for context-aware replies about promoted content
+  if (posts.length > 0) {
+    const postLines = posts
+      .slice(0, 6) // max 6 posts in prompt to keep it focused
+      .map((p, i) => {
+        // Support both FB posts (p.message) and IG posts (p.caption)
+        const text = p.message || p.caption || '';
+        const title = p.title ? ` [${p.title}]` : '';
+        return text ? `${i + 1}.${title} ${text.substring(0, 300)}` : null;
+      })
+      .filter(Boolean);
+
+    if (postLines.length > 0) {
+      prompt += '\n\n**المنشورات الأخيرة على الصفحة (استخدمها كمرجع للإجابة على أسئلة الزبائن):**\n' +
+        postLines.join('\n');
+    }
+  }
+
   return prompt;
 }
 
@@ -90,9 +110,10 @@ ${langInstructions[language] || langInstructions.dz}
  * @param {Array}  history       - [{role: 'user'|'assistant', content, ts}]
  * @param {Array}  products      - tenant product list from Firestore
  * @param {object} tenantConfig  - tenant settings (storeName, botName, language, ...)
+ * @param {Array}  posts         - recent page/IG posts for context (optional)
  * @returns {Promise<{reply: string, orderData: object|null}>}
  */
-async function generateReply(userMessage, history = [], products = [], tenantConfig = {}) {
+async function generateReply(userMessage, history = [], products = [], tenantConfig = {}, posts = []) {
   if (!process.env.GEMINI_API_KEY) {
     return {
       reply: 'عفواً، الذكاء الاصطناعي غير مُهيأ. تواصل مع المتجر مباشرة.',
@@ -116,7 +137,8 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
       parts: [{ text: m.content }],
     }));
 
-  const systemPrompt = buildSystemPrompt(tenantConfig, products);
+  const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
+  console.log(`📝 System prompt built: ${systemPrompt.length} chars, ${posts.length} posts injected`);
 
   for (const modelName of MODEL_CHAIN) {
     try {
@@ -158,11 +180,18 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
   }
 
   // All models failed — log clearly so it's visible in Render
-  console.error(`❌ ALL Gemini models failed for tenant "${tenantConfig.storeName}". Check GEMINI_API_KEY in Render env vars.`);
-  console.error(`   Key present: ${process.env.GEMINI_API_KEY ? 'YES (length=' + process.env.GEMINI_API_KEY.length + ')' : 'NO — MISSING!'}`);
+  const keyStatus = process.env.GEMINI_API_KEY
+    ? `YES (length=${process.env.GEMINI_API_KEY.length}, prefix=${process.env.GEMINI_API_KEY.substring(0, 8)}...)`
+    : 'NO — MISSING!';
+  console.error(`❌ ALL Gemini models failed for tenant "${tenantConfig.storeName || '?'}".`);
+  console.error(`   GEMINI_API_KEY: ${keyStatus}`);
+  console.error(`   Models tried: ${MODEL_CHAIN.join(', ')}`);
+  console.error(`   Tip: Check quota at https://aistudio.google.com/app/apikey or use a different key.`);
 
+  // Personalised fallback — at least greet with the store name
+  const storeName = tenantConfig.storeName || 'المتجر';
   return {
-    reply: 'مرحباً! نحن هنا لخدمتك 😊 حاول مرة أخرى لو سمحت.',
+    reply: `مرحباً! 👋 شكراً على تواصلك مع ${storeName}. حالياً واجهنا مشكلة تقنية مؤقتة — حاول مرة أخرى بعد قليل أو تواصل معنا مباشرة. 🙏`,
     orderData: null,
   };
 }

@@ -11,6 +11,60 @@
 const { getDb } = require('../config/firebase');
 const { generateReply } = require('./ai');
 const metaService = require('./meta');
+const { getPagePosts, getIgMediaPosts } = require('./meta');
+
+// ─────────────────────────────────────────────────────────────
+// Post Cache Helper (30-min TTL stored in Firestore)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Fetch recent page posts, using a 30-min Firestore cache to avoid
+ * hammering the Meta API on every incoming message.
+ *
+ * @param {string} tenantId   - Firestore userId
+ * @param {string} platform   - 'fb' or 'ig'
+ * @param {object} platformDoc - { pageId, igAccountId, accessToken, ... }
+ * @returns {Promise<Array>}  - array of post objects
+ */
+async function fetchRecentPosts(tenantId, platform, platformDoc) {
+  const db = getDb();
+  const cacheKey = `posts_${platform}`;
+  const cacheRef = db.collection('users').doc(tenantId).collection('cache').doc(cacheKey);
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+  try {
+    // Check cache first
+    const cacheSnap = await cacheRef.get();
+    if (cacheSnap.exists) {
+      const cached = cacheSnap.data();
+      if (cached.fetchedAt && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
+        console.log(`📋 [${platform.toUpperCase()}] Using cached posts (${(cached.posts || []).length} items, age=${Math.round((Date.now() - cached.fetchedAt) / 60000)}min)`);
+        return cached.posts || [];
+      }
+    }
+
+    // Cache miss or stale — fetch from Meta API
+    let posts = [];
+    const token = platformDoc.accessToken;
+
+    if (platform === 'fb' && platformDoc.pageId) {
+      posts = await getPagePosts(platformDoc.pageId, token, 8);
+      console.log(`📥 [FB] Fetched ${posts.length} page posts for tenant ${tenantId}`);
+    } else if (platform === 'ig' && (platformDoc.igAccountId || platformDoc.pageId)) {
+      const igId = platformDoc.igAccountId || platformDoc.pageId;
+      posts = await getIgMediaPosts(igId, token, 8);
+      console.log(`📥 [IG] Fetched ${posts.length} media posts for tenant ${tenantId}`);
+    }
+
+    // Update cache (non-blocking)
+    cacheRef.set({ posts, fetchedAt: Date.now() }).catch(() => {});
+
+    return posts;
+  } catch (err) {
+    console.warn(`⚠️ fetchRecentPosts error [${platform}/${tenantId}]:`, err.message);
+    return [];
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Main Message Processor
@@ -80,14 +134,22 @@ async function processMessage(event, tenantId, platform) {
       welcomeMessage: userData.welcomeMessage || '',
     };
 
-    // ── 7. Generate AI reply ──────────────────────────────────
+    // ── 7. Fetch recent page posts (with 30-min cache) ───────────
+    let posts = [];
+    try {
+      posts = await fetchRecentPosts(tenantId, platformType, platform);
+    } catch (e) {
+      console.warn('⚠️ Post fetch skipped:', e.message);
+    }
+
+    // ── 8. Generate AI reply ──────────────────────────────────
     const { reply, orderData } = await generateReply(
-      messageText, history, products, tenantConfig
+      messageText, history, products, tenantConfig, posts
     );
 
-    console.log(`🤖 [${platformType.toUpperCase()}] AI reply for ${userData.storeName}: "${reply.substring(0, 60)}..."`);
+    console.log(`🤖 [${platformType.toUpperCase()}] AI reply for ${userData.storeName} (${posts.length} posts ctx): "${reply.substring(0, 60)}..."`);
 
-    // ── 8. Send reply via Meta Graph API ──────────────────────
+    // ── 9. Send reply via Meta Graph API ──────────────────────
     let sendResult;
 
     if (platformType === 'ig') {
@@ -116,7 +178,7 @@ async function processMessage(event, tenantId, platform) {
     const sent = sendResult?.success;
     console.log(`${sent ? '✅' : '❌'} [${platformType.toUpperCase()}] send to ${senderId}: ${sent ? 'ok' : sendResult?.error}`);
 
-    // ── 9. Save conversation to Firestore ─────────────────────
+    // ── 10. Save conversation to Firestore ────────────────────
     const now = Date.now();
     const updatedHistory = [
       ...history,
@@ -136,7 +198,7 @@ async function processMessage(event, tenantId, platform) {
       ...(convSnap.exists ? {} : { createdAt: now }),
     }, { merge: true });
 
-    // ── 10. If order confirmed → create order doc ─────────────
+    // ── 11. If order confirmed → create order doc ─────────────
     if (orderData?.intent === 'order_confirmed') {
       const orderRef = db
         .collection('users').doc(tenantId)
@@ -159,7 +221,7 @@ async function processMessage(event, tenantId, platform) {
       console.log(`📦 Auto-order created for ${userData.storeName}: ${orderData.product}`);
     }
 
-    // ── 11. Deduct 1 credit ───────────────────────────────────
+    // ── 12. Deduct 1 credit ───────────────────────────────────
     if (sent !== false) { // only deduct if send was attempted
       await userRef.update({
         points:        Math.max(0, balance - 1),
