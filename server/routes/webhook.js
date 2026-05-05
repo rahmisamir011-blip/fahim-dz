@@ -107,13 +107,25 @@ async function handleInstagramEntry(entry) {
 
   for (const msg of messaging) {
     const senderId = msg.sender?.id;
-    if (msg.message?.is_echo)   { console.log(`🔕 [IG] skip echo from ${senderId}`); continue; }
-    if (botIds.has(senderId))   { console.log(`🔕 [IG] skip self-msg from ${senderId}`); continue; }
-    if (!msg.message?.text)     { console.log(`🔕 [IG] skip non-text from ${senderId}`); continue; }
+    if (msg.message?.is_echo) { console.log(`🔕 [IG] skip echo from ${senderId}`); continue; }
+    if (botIds.has(senderId)) { console.log(`🔕 [IG] skip self-msg from ${senderId}`); continue; }
 
-    console.log(`📩 [IG] from ${senderId}: "${msg.message.text?.substring(0, 60)}"`);
+    // Extract text or audio URL from message
+    const { messageText, audioUrl } = extractMessageContent(msg.message);
+
+    if (!messageText && !audioUrl) {
+      console.log(`🔕 [IG] skip non-text/non-audio from ${senderId} (type=${getAttachmentType(msg.message)})`);
+      continue;
+    }
+
+    if (audioUrl) {
+      console.log(`🎤 [IG] Voice message from ${senderId}: audioUrl=${audioUrl.substring(0, 60)}...`);
+    } else {
+      console.log(`📩 [IG] from ${senderId}: "${messageText?.substring(0, 60)}"`);
+    }
+
     await processMessage(
-      { platform: 'ig', senderId, senderName: null, messageText: msg.message.text, messageId: msg.message.mid, timestamp: msg.timestamp },
+      { platform: 'ig', senderId, senderName: null, messageText, audioUrl, messageId: msg.message?.mid, timestamp: msg.timestamp },
       registry.userId,
       platform
     );
@@ -147,11 +159,19 @@ async function handlePageEntry(entry) {
   ]);
 
   for (const msg of messaging) {
-    if (!msg.message?.text) continue;
     if (msg.message?.is_echo) { console.log(`🔕 [page] skip echo`); continue; }
 
     const senderId    = msg.sender?.id;
     const recipientId = msg.recipient?.id;
+
+    // Extract text or audio URL from message
+    const { messageText, audioUrl } = extractMessageContent(msg.message);
+
+    // Skip if no useful content at all
+    if (!messageText && !audioUrl) {
+      console.log(`🔕 [page] skip non-text/non-audio from ${senderId} (type=${getAttachmentType(msg.message)})`);
+      continue;
+    }
 
     // ── Detect Instagram DM via page ─────────────────────────
     // When an IG DM arrives via the page object, recipient.id is the
@@ -164,9 +184,14 @@ async function handlePageEntry(entry) {
       const igBotIds = new Set([igPlatform.igAccountId, igPlatform.pageId, pageId].filter(Boolean));
       if (igBotIds.has(senderId)) { console.log(`🔕 [IG-via-page] skip self-msg`); continue; }
 
-      console.log(`📩 [IG-via-page] from ${senderId} → recipientId=${recipientId}: "${msg.message.text?.substring(0, 60)}"`);
+      if (audioUrl) {
+        console.log(`🎤 [IG-via-page] Voice from ${senderId} → ${recipientId}`);
+      } else {
+        console.log(`📩 [IG-via-page] from ${senderId} → ${recipientId}: "${messageText?.substring(0, 60)}"`);
+      }
+
       await processMessage(
-        { platform: 'ig', senderId, senderName: null, messageText: msg.message.text, messageId: msg.message.mid, timestamp: msg.timestamp },
+        { platform: 'ig', senderId, senderName: null, messageText, audioUrl, messageId: msg.message?.mid, timestamp: msg.timestamp },
         registry.userId,
         igPlatform
       );
@@ -177,9 +202,14 @@ async function handlePageEntry(entry) {
     if (!fbPlatform) { console.warn(`⚠️ No fb platform doc for user ${registry.userId}`); continue; }
     if (senderId === pageId) { console.log(`🔕 [FB] skip echo`); continue; }
 
-    console.log(`📩 [FB] from ${senderId}: "${msg.message.text?.substring(0, 60)}"`);
+    if (audioUrl) {
+      console.log(`🎤 [FB] Voice from ${senderId}`);
+    } else {
+      console.log(`📩 [FB] from ${senderId}: "${messageText?.substring(0, 60)}"`);
+    }
+
     await processMessage(
-      { platform: 'fb', senderId, senderName: null, messageText: msg.message.text, messageId: msg.message.mid, timestamp: msg.timestamp },
+      { platform: 'fb', senderId, senderName: null, messageText, audioUrl, messageId: msg.message?.mid, timestamp: msg.timestamp },
       registry.userId,
       fbPlatform
     );
@@ -245,6 +275,30 @@ async function loadPlatformDoc(userId, key) {
     console.error(`loadPlatformDoc(${userId}, ${key}) error:`, err.message);
     return null;
   }
+}
+
+// ── Helper: extract text and/or audio URL from a Meta message object ──
+// Supports Instagram DMs and Facebook Messenger voice notes.
+// Instagram/FB voice payload:
+//   msg.attachments = [{ type: 'audio', payload: { url: '...' } }]
+function extractMessageContent(message) {
+  if (!message) return { messageText: null, audioUrl: null };
+
+  const text = message.text || null;
+
+  // Look for an audio attachment
+  const attachments = message.attachments || [];
+  const audioAttachment = attachments.find(a => a.type === 'audio');
+  const audioUrl = audioAttachment?.payload?.url || null;
+
+  return { messageText: text, audioUrl };
+}
+
+// ── Helper: get the attachment type string for logging ────────
+function getAttachmentType(message) {
+  if (!message) return 'none';
+  const a = (message.attachments || [])[0];
+  return a ? a.type : (message.text ? 'text' : 'none');
 }
 
 module.exports = router;

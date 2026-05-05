@@ -9,7 +9,7 @@
  */
 
 const { getDb } = require('../config/firebase');
-const { generateReply } = require('./ai');
+const { generateReply, transcribeAudioAndReply } = require('./ai');
 const metaService = require('./meta');
 const { getPagePosts, getIgMediaPosts } = require('./meta');
 
@@ -142,10 +142,28 @@ async function processMessage(event, tenantId, platform) {
       console.warn('⚠️ Post fetch skipped:', e.message);
     }
 
-    // ── 8. Generate AI reply ──────────────────────────────────
-    const { reply, orderData } = await generateReply(
-      messageText, history, products, tenantConfig, posts
-    );
+    // ── 8. Generate AI reply (text or voice) ───────────────────────
+    let reply, orderData, userHistoryEntry;
+
+    if (event.audioUrl && !messageText) {
+      // ─ Voice message: transcribe + reply in one Gemini multimodal call ─
+      console.log(`🎤 [${platformType.toUpperCase()}] Processing voice message from ${senderId}`);
+      const audioResult = await transcribeAudioAndReply(
+        event.audioUrl, history, products, tenantConfig, posts
+      );
+      reply     = audioResult.reply;
+      orderData = audioResult.orderData;
+      // Store a note in history so future turns have context
+      userHistoryEntry = `[رسالة صوتية] ${audioResult.transcription || '(audio)'}`;
+    } else {
+      // ─ Text message: normal flow ────────────────────────────
+      const textResult = await generateReply(
+        messageText, history, products, tenantConfig, posts
+      );
+      reply     = textResult.reply;
+      orderData = textResult.orderData;
+      userHistoryEntry = messageText;
+    }
 
     console.log(`🤖 [${platformType.toUpperCase()}] AI reply for ${userData.storeName} (${posts.length} posts ctx): "${reply.substring(0, 60)}..."`);
 
@@ -182,8 +200,8 @@ async function processMessage(event, tenantId, platform) {
     const now = Date.now();
     const updatedHistory = [
       ...history,
-      { role: 'user',      content: messageText, ts: now },
-      { role: 'assistant', content: reply,        ts: now },
+      { role: 'user',      content: userHistoryEntry, ts: now },
+      { role: 'assistant', content: reply,             ts: now },
     ].slice(-40); // keep last 40 messages
 
     await convRef.set({

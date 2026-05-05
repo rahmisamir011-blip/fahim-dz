@@ -5,6 +5,7 @@
  */
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 
 let genAI = null;
 
@@ -209,4 +210,110 @@ function detectIntent(message) {
   return { intent: 'unknown' };
 }
 
-module.exports = { generateReply, detectIntent, buildSystemPrompt };
+/**
+ * Transcribe a voice message and generate a reply — all in one Gemini call.
+ * Works with Instagram and Facebook Messenger audio CDN URLs.
+ *
+ * @param {string} audioUrl      - Public CDN URL of the audio file
+ * @param {Array}  history       - Conversation history
+ * @param {Array}  products      - Tenant product list
+ * @param {object} tenantConfig  - Tenant settings
+ * @param {Array}  posts         - Recent page posts (optional)
+ * @returns {Promise<{reply: string, transcription: string, orderData: object|null}>}
+ */
+async function transcribeAudioAndReply(audioUrl, history = [], products = [], tenantConfig = {}, posts = []) {
+  if (!process.env.GEMINI_API_KEY) {
+    return {
+      reply: 'عفواً، الذكاء الاصطناعي غير مُهيأ. تواصل مع المتجر مباشرة.',
+      transcription: '',
+      orderData: null,
+    };
+  }
+
+  // Download audio from CDN
+  let audioBase64, mimeType;
+  try {
+    const response = await axios.get(audioUrl, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      headers: { 'User-Agent': 'Mozilla/5.0' }, // some CDNs require a UA
+    });
+    audioBase64 = Buffer.from(response.data).toString('base64');
+    // Detect MIME type from Content-Type header, fallback to audio/mp4 (IG default)
+    mimeType = response.headers['content-type']?.split(';')[0] || 'audio/mp4';
+    console.log(`🎤 Audio downloaded: ${Math.round(response.data.byteLength / 1024)}KB, mimeType=${mimeType}`);
+  } catch (err) {
+    console.error('❌ Failed to download audio:', err.message);
+    const storeName = tenantConfig.storeName || 'المتجر';
+    return {
+      reply: `مرحباً! 👋 وصلتنا رسالتك الصوتية عند ${storeName}. للأسف ما قدرناش نفتحها حالياً — واش تحب تعرف عليه؟ أو اكتبلنا على طول. 🙏`,
+      transcription: '',
+      orderData: null,
+    };
+  }
+
+  // Build system prompt (same as text messages)
+  const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
+
+  // Build conversation history in Gemini format
+  const geminiHistory = history
+    .slice(-10)
+    .map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+  // Models that support inline audio (multimodal)
+  const AUDIO_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+
+  for (const modelName of AUDIO_MODELS) {
+    try {
+      const ai    = getGenAI();
+      const model = ai.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
+
+      // Send audio inline + instruction in one turn
+      // Gemini will transcribe AND generate a contextual reply simultaneously
+      const chat = model.startChat({ history: geminiHistory });
+      const result = await chat.sendMessage([
+        {
+          inlineData: { data: audioBase64, mimeType },
+        },
+        {
+          text: 'هذه رسالة صوتية من العميل. افهم محتواها ورد عليها بشكل طبيعي كما لو جاءت رسالة نصية.',
+        },
+      ]);
+
+      const rawReply = result.response.text();
+
+      // Extract hidden order data if any
+      let orderData = null;
+      const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
+      if (orderMatch) {
+        try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+      }
+
+      const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
+      console.log(`✅ Gemini audio reply via ${modelName}: "${reply.substring(0, 80)}"`);
+
+      return { reply, transcription: '(voice)', orderData };
+
+    } catch (err) {
+      const errMsg = err.message || String(err);
+      console.error(`❌ Gemini audio [${modelName}] failed: ${errMsg.substring(0, 200)}`);
+      continue;
+    }
+  }
+
+  // All audio models failed — fall back to asking the user to type
+  const storeName = tenantConfig.storeName || 'المتجر';
+  return {
+    reply: `مرحباً! 👋 وصلتنا رسالتك الصوتية عند ${storeName}. للأسف ماش قدرناش نفهموها حالياً — ممكن تكتبلنا طلبك بالنص وراح نخدمك 😊`,
+    transcription: '',
+    orderData: null,
+  };
+}
+
+module.exports = { generateReply, transcribeAudioAndReply, detectIntent, buildSystemPrompt };
