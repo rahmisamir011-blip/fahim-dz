@@ -1,11 +1,21 @@
 /**
- * FAHIM DZ — AI Service (Google Gemini)
- * Multi-tenant: generates a personalised reply for each tenant's store
- * Powered by Gemini 2.0 Flash with model fallback chain
+ * FAHIM DZ — AI Service
+ * Primary:  Google Gemini 2.0 Flash (+ 3-model fallback chain)
+ * Fallback: OpenAI gpt-4o-mini (when all Gemini quota is exhausted)
  */
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const axios = require('axios');
+const { OpenAI }             = require('openai');
+const axios                  = require('axios');
+
+let openaiClient = null;
+function getOpenAI() {
+  if (!openaiClient && process.env.OPENAI_API_KEY) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
+
 
 let genAI = null;
 
@@ -116,10 +126,12 @@ ${langInstructions[language] || langInstructions.dz}
  */
 async function generateReply(userMessage, history = [], products = [], tenantConfig = {}, posts = []) {
   if (!process.env.GEMINI_API_KEY) {
-    return {
-      reply: 'عفواً، الذكاء الاصطناعي غير مُهيأ. تواصل مع المتجر مباشرة.',
-      orderData: null,
-    };
+    console.warn('⚠️ No GEMINI_API_KEY — trying OpenAI fallback directly.');
+    const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
+    const fallback = await openAiFallback(userMessage, history, systemPrompt, tenantConfig);
+    if (fallback) return fallback;
+    const storeName = tenantConfig.storeName || 'المتجر';
+    return { reply: `مرحباً! واجهنا مشكلة تقنية مؤقتة عند ${storeName}. حاول مرة أخرى قريباً. 🙏`, orderData: null };
   }
 
   // Model fallback chain — most capable first
@@ -180,21 +192,73 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
     }
   }
 
-  // All models failed — log clearly so it's visible in Render
+  // All Gemini models failed — try OpenAI as ultimate fallback
   const keyStatus = process.env.GEMINI_API_KEY
     ? `YES (length=${process.env.GEMINI_API_KEY.length}, prefix=${process.env.GEMINI_API_KEY.substring(0, 8)}...)`
     : 'NO — MISSING!';
-  console.error(`❌ ALL Gemini models failed for tenant "${tenantConfig.storeName || '?'}".`);
+  console.error(`❌ ALL Gemini models failed for tenant "${tenantConfig.storeName || '?'}" — trying OpenAI fallback.`);
   console.error(`   GEMINI_API_KEY: ${keyStatus}`);
-  console.error(`   Models tried: ${MODEL_CHAIN.join(', ')}`);
-  console.error(`   Tip: Check quota at https://aistudio.google.com/app/apikey or use a different key.`);
 
-  // Personalised fallback — at least greet with the store name
+  const openAiResult = await openAiFallback(userMessage, history, systemPrompt, tenantConfig);
+  if (openAiResult) return openAiResult;
+
+  // Absolute last resort
   const storeName = tenantConfig.storeName || 'المتجر';
   return {
     reply: `مرحباً! 👋 شكراً على تواصلك مع ${storeName}. حالياً واجهنا مشكلة تقنية مؤقتة — حاول مرة أخرى بعد قليل أو تواصل معنا مباشرة. 🙏`,
     orderData: null,
   };
+}
+
+// ─────────────────────────────────────────────────────────────
+// OpenAI Fallback (gpt-4o-mini)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Try OpenAI gpt-4o-mini when all Gemini models are quota-exhausted.
+ * @returns {object|null} { reply, orderData } or null if OpenAI also unavailable
+ */
+async function openAiFallback(userMessage, history = [], systemPrompt = '', tenantConfig = {}) {
+  const oai = getOpenAI();
+  if (!oai) {
+    console.warn('⚠️ No OPENAI_API_KEY set — cannot use OpenAI fallback.');
+    return null;
+  }
+
+  try {
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      // inject last 10 history turns
+      ...history.slice(-10).map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+      { role: 'user', content: userMessage },
+    ];
+
+    const completion = await oai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      max_tokens: 400,
+      temperature: 0.7,
+    });
+
+    const rawReply = completion.choices[0]?.message?.content || '';
+
+    let orderData = null;
+    const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
+    if (orderMatch) {
+      try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+    }
+
+    const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
+    console.log(`✅ OpenAI fallback reply (gpt-4o-mini): "${reply.substring(0, 80)}"`);
+    return { reply, orderData };
+
+  } catch (err) {
+    console.error('❌ OpenAI fallback failed:', err.message?.substring(0, 200));
+    return null;
+  }
 }
 
 /**
@@ -222,13 +286,7 @@ function detectIntent(message) {
  * @returns {Promise<{reply: string, transcription: string, orderData: object|null}>}
  */
 async function transcribeAudioAndReply(audioUrl, history = [], products = [], tenantConfig = {}, posts = []) {
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      reply: 'عفواً، الذكاء الاصطناعي غير مُهيأ. تواصل مع المتجر مباشرة.',
-      transcription: '',
-      orderData: null,
-    };
-  }
+  const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
 
   // Download audio from CDN
   let audioBase64, mimeType;
@@ -253,7 +311,7 @@ async function transcribeAudioAndReply(audioUrl, history = [], products = [], te
   }
 
   // Build system prompt (same as text messages)
-  const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
+  // (already built above for early exit path)
 
   // Build conversation history in Gemini format
   const geminiHistory = history
@@ -307,7 +365,35 @@ async function transcribeAudioAndReply(audioUrl, history = [], products = [], te
     }
   }
 
-  // All audio models failed — fall back to asking the user to type
+  // All Gemini audio models failed — try OpenAI Whisper transcription + gpt-4o-mini reply
+  console.warn('⚠️ Gemini audio models failed. Trying OpenAI Whisper fallback...');
+  const oai = getOpenAI();
+  if (oai && audioBase64) {
+    try {
+      // Reconstruct buffer for OpenAI
+      const audioBuffer = Buffer.from(audioBase64, 'base64');
+      // OpenAI Whisper requires a File-like object — use a Blob approach via Buffer
+      const { toFile } = require('openai');
+      const audioFile = await toFile(audioBuffer, 'voice.mp4', { type: mimeType || 'audio/mp4' });
+      const transcription = await oai.audio.transcriptions.create({
+        file: audioFile,
+        model: 'whisper-1',
+        language: 'ar',
+      });
+      const transcribedText = transcription.text;
+      console.log(`🎤 Whisper transcription: "${transcribedText?.substring(0, 80)}"`);
+
+      // Now reply using OpenAI gpt-4o-mini with the transcription as the user message
+      const fallbackResult = await openAiFallback(transcribedText, history, systemPrompt, tenantConfig);
+      if (fallbackResult) {
+        return { ...fallbackResult, transcription: transcribedText };
+      }
+    } catch (whisperErr) {
+      console.error('❌ Whisper fallback failed:', whisperErr.message?.substring(0, 200));
+    }
+  }
+
+  // Absolute last resort — politely ask user to type
   const storeName = tenantConfig.storeName || 'المتجر';
   return {
     reply: `مرحباً! 👋 وصلتنا رسالتك الصوتية عند ${storeName}. للأسف ماش قدرناش نفهموها حالياً — ممكن تكتبلنا طلبك بالنص وراح نخدمك 😊`,
