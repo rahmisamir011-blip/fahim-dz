@@ -105,9 +105,20 @@ async function processMessage(event, tenantId, platform) {
 
     // ── 3. Check credit balance ───────────────────────────────
     const balance = userData.points ?? userData.credits ?? 0;
-    if (balance <= 0) {
-      console.warn(`💸 Tenant ${tenantId} (${userData.storeName}) has no credits — skipping reply`);
-      return;
+    const isAdmin = userData.email && process.env.ADMIN_EMAIL &&
+                    userData.email.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase();
+
+    if (balance <= 0 && !isAdmin) {
+      // Auto-grant 500 starter credits to pre-existing accounts that have 0
+      // (accounts created before the points system was added)
+      if (!userData.hasOwnProperty('points') && !userData.hasOwnProperty('credits')) {
+        console.log(`🎁 Auto-granting 500 starter credits to tenant ${tenantId} (${userData.storeName})`);
+        await userRef.update({ points: 500 });
+        // Allow this message to proceed
+      } else {
+        console.warn(`💸 Tenant ${tenantId} (${userData.storeName}) has no credits — skipping reply`);
+        return;
+      }
     }
 
     // ── 4. Load conversation history ──────────────────────────

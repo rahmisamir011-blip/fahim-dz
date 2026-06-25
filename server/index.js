@@ -146,7 +146,28 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ── Debug: Check & Force Webhook Subscription ─────────────────
+// ── Admin: Top-up credits for a user ──────────────────────────
+// Usage: POST /api/admin/topup  { email, points }
+// Requires: Authorization: Bearer <ADMIN_SECRET>
+app.post('/api/admin/topup', async (req, res) => {
+  const secret = req.headers.authorization?.replace('Bearer ', '');
+  if (!secret || secret !== process.env.ADMIN_SECRET) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { email, points } = req.body;
+  if (!email || !points || isNaN(points)) {
+    return res.status(400).json({ error: 'email and points are required' });
+  }
+  const { getDb } = require('./config/firebase');
+  const db = getDb();
+  const snap = await db.collection('users').where('email', '==', email.toLowerCase().trim()).limit(1).get();
+  if (snap.empty) return res.status(404).json({ error: 'User not found' });
+  const userDoc = snap.docs[0];
+  const current = userDoc.data().points ?? 0;
+  await userDoc.ref.update({ points: current + parseInt(points) });
+  return res.json({ ok: true, email, newBalance: current + parseInt(points) });
+});
+
 // Usage: GET /api/debug/subscribe?pageId=PAGE_ID&token=PAGE_TOKEN
 app.get('/api/debug/subscribe', async (req, res) => {
   const { pageId, token } = req.query;
