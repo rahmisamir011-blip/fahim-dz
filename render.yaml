@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: FAHIM DZ
+    name: Repondili
     env: node
     region: frankfurt  # Closest to Algeria
     plan: free         # Upgrade to starter ($7/mo) for always-on
@@ -44,6 +44,6 @@ services:
       - key: META_WEBHOOK_VERIFY_TOKEN
         sync: false
       - key: FRONTEND_URL
-        value: https://FAHIM DZ.onrender.com
+        value: https://fahim-dz.onrender.com
       - key: WHATSAPP_API_VERSION
         value: v19.0

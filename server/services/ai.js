@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — AI Service
+ * Repondili — AI Service
  * Primary:  DeepSeek V4 Flash (+ Pro fallback)
  * Audio:    Google Gemini 2.0 Flash (for voice message transcription)
  */
@@ -15,7 +15,7 @@ let deepseekClient = null;
 function getDeepSeek() {
   if (!deepseekClient && process.env.DEEPSEEK_API_KEY) {
     deepseekClient = new OpenAI({
-      baseURL: process.env.AI_BASE_URL || 'https://api.deepseek.com',
+      baseURL: 'https://api.deepseek.com',
       apiKey: process.env.DEEPSEEK_API_KEY,
     });
   }

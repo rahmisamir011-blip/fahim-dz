@@ -1,6 +1,6 @@
 /**
  * ╔════════════════════════════════════════════════════════╗
- * ║         FAHIM DZ — Backend Server                    ║
+ * ║         Repondili — Backend Server                    ║
  * ║  Multi-Tenant AI SaaS for IG, Facebook & WhatsApp     ║
  * ║  Deploy: 2026-04-20 — multi-tenant + token refresh    ║
  * ╚════════════════════════════════════════════════════════╝
@@ -55,7 +55,7 @@ app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? [
         process.env.FRONTEND_URL,
-        'https://FAHIM DZ.onrender.com',
+        'https://fahim-dz.onrender.com',
       ].filter(Boolean)
     : '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -132,7 +132,7 @@ app.get('/health', (req, res) => {
   const { isFirebaseReady } = require('./config/firebase');
   res.json({
     status: 'ok',
-    service: 'FAHIM DZ API',
+    service: 'Repondili API',
     version: '3.0.0-multitenant',
     deploy: '2026-04-20T22:00',
     timestamp: new Date().toISOString(),
@@ -351,7 +351,7 @@ app.get('/privacy.html', (req, res) => {
 
 
 // ── Debug: Full pipeline diagnosis for logged-in user ─────────────────
-// Usage: GET /api/debug/diagnose  (with Authorization: Bearer <FAHIM DZ_token>)
+// Usage: GET /api/debug/diagnose  (with Authorization: Bearer <Repondili_token>)
 // Returns pass/fail for every step in the messaging pipeline
 app.get('/api/debug/diagnose', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
@@ -483,7 +483,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log('\n');
   console.log('╔════════════════════════════════════════════╗');
-  console.log('║       FAHIM DZ  —  Server Started         ║');
+  console.log('║       Repondili  —  Server Started         ║');
   console.log('╠════════════════════════════════════════════╣');
   console.log(`║  🌐  http://localhost:${PORT}                  ║`);
   console.log(`║  📡  Webhook: /webhook/meta                ║`);
