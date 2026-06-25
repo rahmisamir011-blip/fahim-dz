@@ -308,7 +308,7 @@ async function pollAllIgPrivateUsers() {
 // ─────────────────────────────────────────────────────────────
 
 function startIgPrivatePolling() {
-  const INTERVAL = 60 * 1000; // every 60 seconds
+  const INTERVAL = 20 * 1000; // every 20 seconds (was 60s)
   console.log(`🔄 [IGP] Polling service started (interval: ${INTERVAL / 1000}s)`);
 
   // First poll after 15 seconds (give server time to fully start)

@@ -50,18 +50,36 @@ router.post('/', verifyMetaSignature, async (req, res) => {
   const entry0 = body.entry?.[0];
   const msg0   = entry0?.messaging?.[0];
 
-  console.log('📨 Webhook received:', JSON.stringify({
-    object:      body.object,
-    entryCount:  body.entry?.length,
-    entry0id:    entry0?.id,
-    recipient0:  msg0?.recipient?.id,
-    sender0:     msg0?.sender?.id,
-    isEcho:      msg0?.message?.is_echo,
-    text0:       msg0?.message?.text?.substring(0, 40),
+  const logEntry = {
+    object:       body.object,
+    entryCount:   body.entry?.length,
+    entry0id:     entry0?.id,
+    recipient0:   msg0?.recipient?.id,
+    sender0:      msg0?.sender?.id,
+    isEcho:       msg0?.message?.is_echo,
+    text0:        msg0?.message?.text?.substring(0, 80),
     hasMessaging: !!(entry0?.messaging?.length),
     hasChanges:   !!(entry0?.changes?.length),
-    ts: new Date().toISOString(),
-  }));
+    ts:           new Date().toISOString(),
+    rawBody:      JSON.stringify(body).substring(0, 1000),
+  };
+
+  console.log('📨 Webhook received:', JSON.stringify(logEntry));
+
+  // Save to Firestore webhook_log for debugging
+  try {
+    const db = getDb();
+    const logRef = db.collection('webhook_log').doc();
+    await logRef.set(logEntry);
+    // Keep only last 50 entries
+    const old = await db.collection('webhook_log').orderBy('ts', 'asc').get();
+    if (old.size > 50) {
+      const toDelete = old.docs.slice(0, old.size - 50);
+      for (const d of toDelete) await d.ref.delete();
+    }
+  } catch (logErr) {
+    console.warn('⚠️ webhook_log save failed:', logErr.message);
+  }
 
   if (!['instagram', 'page', 'whatsapp_business_account'].includes(body.object)) {
     console.log('⚠️ Unknown webhook object:', body.object);

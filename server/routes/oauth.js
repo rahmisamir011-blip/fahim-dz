@@ -226,23 +226,30 @@ router.get('/callback', async (req, res) => {
     }
 
     // 6. Subscribe page to Meta webhook events
-    // IMPORTANT: Only use 'messages' — messaging_postbacks requires pages_messaging
-    // advanced permission which needs App Review. Using just 'messages' works for
-    // both Instagram DMs and Facebook Messenger in Development mode for testers.
-    const subscribeFields = 'messages';
-
+    // Try extended fields first, fallback to just 'messages' if not approved
     let subscribeResult = 'skipped';
     try {
       const subRes = await axios.post(
         `https://graph.facebook.com/${META_API_VERSION}/${pageId}/subscribed_apps`,
         null,
-        { params: { subscribed_fields: subscribeFields, access_token: pageToken } }
+        { params: { subscribed_fields: 'messages,messaging_postbacks', access_token: pageToken } }
       );
       subscribeResult = subRes.data?.success ? 'ok' : JSON.stringify(subRes.data);
-      console.log(`✅ Page ${pageId} subscribed to webhook [${subscribeFields}]: ${subscribeResult}`);
+      console.log(`✅ Page ${pageId} subscribed to webhook [messages,messaging_postbacks]: ${subscribeResult}`);
     } catch (subErr) {
-      subscribeResult = 'failed: ' + (subErr.response?.data?.error?.message || subErr.message);
-      console.error(`❌ Webhook subscription FAILED for page ${pageId}:`, subErr.response?.data || subErr.message);
+      // Fallback to just messages
+      try {
+        const subRes2 = await axios.post(
+          `https://graph.facebook.com/${META_API_VERSION}/${pageId}/subscribed_apps`,
+          null,
+          { params: { subscribed_fields: 'messages', access_token: pageToken } }
+        );
+        subscribeResult = subRes2.data?.success ? 'ok (messages only)' : JSON.stringify(subRes2.data);
+        console.log(`✅ Page ${pageId} subscribed [messages only]: ${subscribeResult}`);
+      } catch (subErr2) {
+        subscribeResult = 'failed: ' + (subErr2.response?.data?.error?.message || subErr2.message);
+        console.error(`❌ Webhook subscription FAILED for page ${pageId}:`, subErr2.response?.data || subErr2.message);
+      }
     }
 
     // For Instagram: verify we got the IG account ID (critical for webhook routing)

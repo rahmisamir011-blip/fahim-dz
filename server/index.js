@@ -264,6 +264,23 @@ app.get('/api/debug/registry', async (req, res) => {
   }
 });
 
+// ── Debug: Show recent webhook payloads received from Meta ────────────
+// Usage: GET /api/debug/webhook-log
+app.get('/api/debug/webhook-log', async (req, res) => {
+  try {
+    const { getDb, isFirebaseReady } = require('./config/firebase');
+    if (!isFirebaseReady()) return res.json({ error: 'Firebase not ready' });
+    const db = getDb();
+    const snap = await db.collection('webhook_log').orderBy('ts', 'desc').limit(20).get();
+    const entries = [];
+    snap.forEach(doc => entries.push({ id: doc.id, ...doc.data() }));
+    res.json({ count: entries.length, entries });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 // ── Debug: Simulate incoming webhook (for testing without Meta) ─
 app.post('/api/debug/simulate-message', async (req, res) => {
   const { pageId, senderId, text } = req.body;
