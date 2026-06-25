@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Authentication Routes
+ * REPONDILI — Authentication Routes
  * POST /api/auth/register
  * POST /api/auth/login
  * GET  /api/auth/me
@@ -72,7 +72,7 @@ router.post('/register', async (req, res) => {
       passwordHash,
       storeName: storeName?.trim() || `${name.trim()}'s Store`,
       // ── Bot configuration (customisable from dashboard settings) ──
-      botName: 'فهيم',             // AI agent display name
+      botName: 'ريبونديلي',             // AI agent display name
       language: 'dz',              // dz=darija, ar=arabic, fr=french
       welcomeMessage: '',          // Custom greeting (optional)
       agentEnabled: true,          // Master on/off switch for AI replies

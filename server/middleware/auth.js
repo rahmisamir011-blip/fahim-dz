@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — JWT Authentication Middleware
+ * REPONDILI — JWT Authentication Middleware
  */
 
 const jwt = require('jsonwebtoken');

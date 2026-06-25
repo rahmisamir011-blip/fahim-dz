@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Dashboard & Stats Routes
+ * REPONDILI — Dashboard & Stats Routes
  * GET /api/dashboard/stats
  * GET /api/dashboard/conversations
  * POST /api/dashboard/billing/purchase

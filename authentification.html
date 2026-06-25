@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FAHIM DZ | تسجيل الدخول / إنشاء حساب</title>
+  <title>REPONDILI | تسجيل الدخول / إنشاء حساب</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -28,11 +28,11 @@
         <div class="panel-info login-info">
           <div class="panel-info-content">
             <div class="info-logo">
-              <img src="assets/logo.svg" alt="FAHIM DZ" class="info-logo-img" onerror="this.style.display='none'" />
-              <span class="logo-text-fallback">FAHIM DZ</span>
+              <img src="assets/logo.svg" alt="REPONDILI" class="info-logo-img" onerror="this.style.display='none'" />
+              <span class="logo-text-fallback">REPONDILI</span>
             </div>
             <h2>أهلاً بك!</h2>
-            <p>أدخل بياناتك الشخصية وابدأ رحلتك معنا في منصة فهيم</p>
+            <p>أدخل بياناتك الشخصية وابدأ رحلتك معنا في منصة ريبونديلي</p>
             <button class="panel-switch-btn" id="goto-register">سجل الآن</button>
           </div>
           <div class="info-decoration">
@@ -177,8 +177,8 @@
         <div class="panel-info register-info">
           <div class="panel-info-content">
             <div class="info-logo">
-              <img src="assets/logo.svg" alt="FAHIM DZ" class="info-logo-img" onerror="this.style.display='none'" />
-              <span class="logo-text-fallback">FAHIM DZ</span>
+              <img src="assets/logo.svg" alt="REPONDILI" class="info-logo-img" onerror="this.style.display='none'" />
+              <span class="logo-text-fallback">REPONDILI</span>
             </div>
             <h2>مرحباً بعودتك!</h2>
             <p>للبقاء على اتصال معنا، يرجى تسجيل الدخول بمعلوماتك الشخصية</p>
@@ -199,7 +199,7 @@
       <div class="helper-card">
         <span class="helper-icon">🤔</span>
         <div class="helper-text">
-          <strong>هل بمقدور فهيم الفهم الدارجة؟</strong>
+          <strong>هل بمقدور ريبونديلي الفهم الدارجة؟</strong>
           <p>نعم! تدرّب خصيصاً على الجزائرية 😎</p>
         </div>
       </div>
@@ -239,7 +239,7 @@
     if (window.location.hash === '#register') showRegister();
 
     // Redirect if already logged in
-    if (localStorage.getItem('FAHIM DZ_token')) {
+    if (localStorage.getItem('REPONDILI_token')) {
       window.location.href = 'dashboard.html';
     }
 
@@ -282,8 +282,8 @@
         });
         const data = await res.json();
         if (!res.ok) return showErr('login-error', data.error || 'فشل تسجيل الدخول');
-        localStorage.setItem('FAHIM DZ_token', data.token);
-        localStorage.setItem('FAHIM DZ_user', JSON.stringify(data.user));
+        localStorage.setItem('REPONDILI_token', data.token);
+        localStorage.setItem('REPONDILI_user', JSON.stringify(data.user));
         window.location.href = 'dashboard.html';
       } catch {
         showErr('login-error', 'خطأ في الاتصال — تأكد من تشغيل السيرفر');
@@ -313,8 +313,8 @@
         });
         const data = await res.json();
         if (!res.ok) return showErr('register-error', data.error || 'فشل إنشاء الحساب');
-        localStorage.setItem('FAHIM DZ_token', data.token);
-        localStorage.setItem('FAHIM DZ_user', JSON.stringify(data.user));
+        localStorage.setItem('REPONDILI_token', data.token);
+        localStorage.setItem('REPONDILI_user', JSON.stringify(data.user));
         window.location.href = 'dashboard.html';
       } catch {
         showErr('register-error', 'خطأ في الاتصال — تأكد من تشغيل السيرفر');

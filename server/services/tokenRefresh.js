@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Token Auto-Refresh Service
+ * REPONDILI — Token Auto-Refresh Service
  *
  * Meta Page Access Tokens from the User OAuth flow are long-lived (~60 days).
  * This service automatically refreshes them before they expire so

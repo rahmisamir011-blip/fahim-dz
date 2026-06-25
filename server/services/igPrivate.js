@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Instagram Private API Service
+ * REPONDILI — Instagram Private API Service
  * ─────────────────────────────────────────────────────────────
  * Allows clients to connect Instagram via username + password.
  * Polls DMs every 60s and replies with AI — NO Meta App Review needed.
@@ -288,7 +288,7 @@ async function pollAllIgPrivateUsers() {
 
       const tenantConfig = {
         storeName:      userData.storeName      || 'المتجر',
-        botName:        userData.botName        || 'فهيم',
+        botName:        userData.botName        || 'ريبونديلي',
         language:       userData.language       || 'dz',
         welcomeMessage: userData.welcomeMessage || '',
       };

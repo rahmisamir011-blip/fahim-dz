@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Telegram Bot Integration
+ * REPONDILI — Telegram Bot Integration
  *
  * Zero-verification alternative to Instagram/Facebook.
  * Each tenant creates a bot via @BotFather and pastes the token here.

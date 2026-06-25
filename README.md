@@ -1,4 +1,4 @@
-# FAHIM DZ — Setup Guide
+# Repondili — Setup Guide
 ## كيفية إعداد المشروع بالكامل
 
 ---
@@ -75,7 +75,7 @@ npm run dev
    - للإنتاج: `https://yourdomain.com/webhook/meta`
 3. أدخل **Verify Token** (نفس القيمة في `.env`):
    ```
-   FAHIM DZ_webhook_secret_2024
+   Repondili_webhook_secret_2024
    ```
 4. اشترك في الأحداث:
    - `messages`
@@ -117,7 +117,7 @@ GEMINI_API_KEY=AIza...  # optional, for voice messages
 
 META_APP_ID=...
 META_APP_SECRET=...
-META_WEBHOOK_VERIFY_TOKEN=FAHIM DZ_webhook_secret_2024
+META_WEBHOOK_VERIFY_TOKEN=Repondili_webhook_secret_2024
 ```
 
 ---
@@ -126,7 +126,7 @@ META_WEBHOOK_VERIFY_TOKEN=FAHIM DZ_webhook_secret_2024
 
 ```bash
 # اختبار التحقق
-curl "http://localhost:3000/webhook/meta?hub.mode=subscribe&hub.verify_token=FAHIM DZ_webhook_secret_2024&hub.challenge=TEST_CHALLENGE"
+curl "http://localhost:3000/webhook/meta?hub.mode=subscribe&hub.verify_token=Repondili_webhook_secret_2024&hub.challenge=TEST_CHALLENGE"
 # يجب أن يرد بـ: TEST_CHALLENGE
 
 # Health check

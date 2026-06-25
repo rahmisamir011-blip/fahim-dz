@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Products Routes
+ * REPONDILI — Products Routes
  * GET    /api/products
  * POST   /api/products
  * PATCH  /api/products/:id

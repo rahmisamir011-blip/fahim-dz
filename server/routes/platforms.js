@@ -1,8 +1,8 @@
 /**
- * FAHIM DZ — Platforms Connection Routes (SaaS Multi-Tenant)
+ * REPONDILI — Platforms Connection Routes (SaaS Multi-Tenant)
  *
  * SaaS Architecture:
- *  - ONE Meta App owned by operator (FAHIM DZ)
+ *  - ONE Meta App owned by operator (REPONDILI)
  *  - Each TENANT connects THEIR Facebook Page/IG account/WhatsApp via FB Business Login
  *  - Operator never asks clients for tokens manually — FB SDK handles it seamlessly
  *

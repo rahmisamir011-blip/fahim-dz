@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Meta Graph API Service
+ * REPONDILI — Meta Graph API Service
  * Handles: Instagram DM, Facebook Messenger, WhatsApp Business API
  */
 

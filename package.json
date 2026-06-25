@@ -1,7 +1,7 @@
 {
-  "name": "FAHIM DZ-backend",
+  "name": "repondili-backend",
   "version": "1.0.0",
-  "description": "FAHIM DZ — AI Sales Agent Backend for Instagram, Facebook & WhatsApp",
+  "description": "Repondili — AI Sales Agent Backend for Instagram, Facebook & WhatsApp",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

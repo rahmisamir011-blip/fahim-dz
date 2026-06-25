@@ -15,7 +15,7 @@ let deepseekClient = null;
 function getDeepSeek() {
   if (!deepseekClient && process.env.DEEPSEEK_API_KEY) {
     deepseekClient = new OpenAI({
-      baseURL: 'https://api.deepseek.com',
+      baseURL: process.env.AI_BASE_URL || 'https://api.deepseek.com',
       apiKey: process.env.DEEPSEEK_API_KEY,
     });
   }

@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Meta Webhook Signature Verification
+ * REPONDILI — Meta Webhook Signature Verification
  * Verifies X-Hub-Signature-256 from Meta
  */
 

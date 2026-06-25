@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Dashboard (Real API Version)
+ * REPONDILI — Dashboard (Real API Version)
  * All data fetched from: /api/dashboard, /api/orders, /api/products, /api/platforms
  */
 
@@ -7,7 +7,7 @@ const API_BASE = window.location.origin;
 
 // ── API Helper ─────────────────────────────────────────────────
 async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem('FAHIM DZ_token');
+  const token = localStorage.getItem('REPONDILI_token');
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -17,8 +17,8 @@ async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    localStorage.removeItem('FAHIM DZ_token');
-    localStorage.removeItem('FAHIM DZ_user');
+    localStorage.removeItem('REPONDILI_token');
+    localStorage.removeItem('REPONDILI_user');
     window.location.href = 'authentification.html';
     return null;
   }
@@ -27,26 +27,26 @@ async function apiFetch(path, options = {}) {
 }
 
 // ── Guard ──────────────────────────────────────────────────────
-const token = localStorage.getItem('FAHIM DZ_token');
+const token = localStorage.getItem('REPONDILI_token');
 if (!token) window.location.href = 'authentification.html';
 
 // ── AUTH MODULE (from localStorage cache + API) ────────────────
 const Auth = {
   getUser() {
-    try { return JSON.parse(localStorage.getItem('FAHIM DZ_user') || 'null'); }
+    try { return JSON.parse(localStorage.getItem('REPONDILI_user') || 'null'); }
     catch { return null; }
   },
   async refreshUser() {
     const data = await apiFetch('/api/auth/me');
     if (data?.user) {
-      localStorage.setItem('FAHIM DZ_user', JSON.stringify(data.user));
+      localStorage.setItem('REPONDILI_user', JSON.stringify(data.user));
       return data.user;
     }
     return this.getUser();
   },
   logout() {
-    localStorage.removeItem('FAHIM DZ_token');
-    localStorage.removeItem('FAHIM DZ_user');
+    localStorage.removeItem('REPONDILI_token');
+    localStorage.removeItem('REPONDILI_user');
     window.location.href = 'index.html';
   }
 };
@@ -215,7 +215,7 @@ async function loadPlatforms() {
 // ── CONNECT PLATFORM — SaaS Multi-Tenant (Facebook Business Login) ────────
 /**
  * ARCHITECTURE:
- * - YOU (the operator) own ONE Meta App (FAHIM DZ's app).
+ * - YOU (the operator) own ONE Meta App (REPONDILI's app).
  * - Each CLIENT connects THEIR Instagram/Facebook Business Page or WhatsApp
  *   number through your app using Facebook's Business Login JS SDK.
  * - No client ever needs a developer account — they just log in with Facebook.
@@ -240,11 +240,11 @@ function connectWithFacebook(platform) {
   // If fix.js didn't override window.connectWithFacebook before this ran, do it here.
   console.log('[dashboard.js] connectWithFacebook — delegating to server-side OAuth:', platform);
   Toast.show('\u23f3 \u062c\u0627\u0631\u064a \u0641\u062a\u062d \u0646\u0627\u0641\u0630\u0629 \u0627\u0644\u0631\u0628\u0637...', 'info');
-  var authToken = localStorage.getItem('FAHIM DZ_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
+  var authToken = localStorage.getItem('REPONDILI_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
   if (!authToken) { Toast.show('\u274c \u064a\u062c\u0628 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648\u0644\u0627\u064b.', 'error'); return; }
   var url = '/api/oauth/connect/' + platform + '?token=' + encodeURIComponent(authToken);
   var w = 620, h = 720;
-  var popup = window.open(url, 'FAHIM DZ_oauth_' + platform,
+  var popup = window.open(url, 'REPONDILI_oauth_' + platform,
     'width=' + w + ',height=' + h + ',scrollbars=yes,resizable=yes');
   if (!popup || popup.closed) {
     Toast.show('\u26a0\ufe0f \u062a\u0645 \u062d\u062c\u0628 \u0627\u0644\u0646\u0627\u0641\u0630\u0629 \u0627\u0644\u0645\u0646\u0628\u062b\u0642\u0629.', 'warning');
@@ -512,7 +512,7 @@ window.disconnectPlatform = async function(platformKey) {
     Toast.show(`⏳ جارٍ قطع اتصال ${label}...`, 'info');
 
     try {
-      const token = localStorage.getItem('FAHIM DZ_token');
+      const token = localStorage.getItem('REPONDILI_token');
       if (!token) { Toast.show('❌ يجب تسجيل الدخول أولاً', 'error'); return; }
 
       const rawRes = await fetch(`${API_BASE}/api/platforms/disconnect`, {
@@ -522,7 +522,7 @@ window.disconnectPlatform = async function(platformKey) {
       });
 
       if (rawRes.status === 401) {
-        localStorage.removeItem('FAHIM DZ_token');
+        localStorage.removeItem('REPONDILI_token');
         Toast.show('❌ انتهت الجلسة، يرجى تسجيل الدخول مجدداً', 'error');
         setTimeout(() => { window.location.href = 'authentification.html'; }, 1500);
         return;
@@ -652,7 +652,7 @@ async function loadOrdersPage() {
     const blob = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `FAHIM DZ_orders_${Date.now()}.csv`;
+    a.download = `REPONDILI_orders_${Date.now()}.csv`;
     a.click();
     Toast.show('تم تصدير الطلبات!', 'success');
   });
@@ -836,7 +836,7 @@ async function loadInboxPage() {
     renderConversations(data?.conversations || []);
   } catch (err) {}
 
-  // FAHIM DZBot demo widget (uses localStorage for demo, real via Meta webhooks)
+  // REPONDILIBot demo widget (uses localStorage for demo, real via Meta webhooks)
   initChatWidget();
 }
 
@@ -893,7 +893,7 @@ function initChatWidget() {
 
     setTimeout(() => {
       typing.remove();
-      const reply = FAHIM DZBot.generateResponse(msg);
+      const reply = REPONDILIBot.generateResponse(msg);
       const aiBubble = document.createElement('div');
       aiBubble.className = 'w-msg w-msg-ai';
       aiBubble.textContent = reply;
@@ -1133,8 +1133,8 @@ function drawChart(ctx, canvas, labels, data) {
   });
 }
 
-// ── FAHIM DZ BOT (local demo widget) ──────────────────────────────
-const FAHIM DZBot = {
+// ── REPONDILI BOT (local demo widget) ──────────────────────────────
+const REPONDILIBot = {
   responses: {
     greeting: ['أهلاً وسهلاً! 👋 كيفاش نخدمك اليوم؟', 'مرحبا! 😊 واش تحب نساعدك؟', 'سلام! كيفاش نقدر نعاونك؟'],
     price: ['السعر هو 3,500 دج. واش يعجبك؟ 💰', 'قيمتو زهيد جداً! 🎯 واش تحب تطلب؟'],

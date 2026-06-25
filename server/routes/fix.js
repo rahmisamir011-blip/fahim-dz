@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Fix.js Dynamic Route  v20260419c
+ * REPONDILI — Fix.js Dynamic Route  v20260419c
  * Serves the latest JS patch via Express (bypasses all static file caching).
  *
  * KEY FIX: Clones connect buttons to strip old dashboard.js event listeners,
@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
   // NOTE: Using a regular string (no template literal) to avoid escaping issues.
   // Arabic text is embedded directly as UTF-8 since the response is UTF-8 encoded.
   const js = [
-    '/* FAHIM FIX v20260419c — server-side OAuth popup (never cached) */',
+    '/* REPONDILI FIX v20260419c — server-side OAuth popup (never cached) */',
     '(function() {',
     '  "use strict";',
     '',
@@ -26,7 +26,7 @@ router.get('/', (req, res) => {
     '  // Opens /api/oauth/connect/:platform as a popup window.',
     '  // The server does the code exchange; sends postMessage on success.',
     '  function _oauthConnect(platform) {',
-    '    var authToken = localStorage.getItem("FAHIM DZ_token")',
+    '    var authToken = localStorage.getItem("REPONDILI_token")',
     '                 || localStorage.getItem("authToken")',
     '                 || localStorage.getItem("token");',
     '    if (!authToken) {',
@@ -39,7 +39,7 @@ router.get('/', (req, res) => {
     '    var w = 620, h = 720;',
     '    var left = Math.max(0, Math.round((screen.width  - w) / 2));',
     '    var top  = Math.max(0, Math.round((screen.height - h) / 2));',
-    '    var popup = window.open(url, "FAHIM DZ_oauth_" + platform,',
+    '    var popup = window.open(url, "REPONDILI_oauth_" + platform,',
     '      "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top +',
     '        ",scrollbars=yes,resizable=yes,status=yes");',
     '',

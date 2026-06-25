@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Bot Settings Routes
+ * REPONDILI — Bot Settings Routes
  * Lets each tenant configure their AI bot from the dashboard.
  *
  * GET  /api/settings        → load current settings
@@ -22,7 +22,7 @@ router.get('/', requireAuth, async (req, res) => {
     const d = snap.data();
     return res.json({
       storeName:      d.storeName      || '',
-      botName:        d.botName        || 'فهيم',
+      botName:        d.botName        || 'ريبونديلي',
       language:       d.language       || 'dz',
       welcomeMessage: d.welcomeMessage || '',
       agentEnabled:   d.agentEnabled   !== false, // default true

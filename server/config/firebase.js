@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Firebase Admin SDK Configuration
+ * REPONDILI — Firebase Admin SDK Configuration
  */
 
 const admin = require('firebase-admin');

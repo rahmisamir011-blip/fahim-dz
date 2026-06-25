@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Core Messaging Service
+ * REPONDILI — Core Messaging Service
  * Multi-tenant: each message is routed to its owner's bot, using
  * that tenant's configuration, products, and conversation history.
  *
@@ -129,7 +129,7 @@ async function processMessage(event, tenantId, platform) {
     // ── 6. Build tenant config for AI ─────────────────────────
     const tenantConfig = {
       storeName:      userData.storeName      || 'المتجر',
-      botName:        userData.botName        || 'فهيم',
+      botName:        userData.botName        || 'ريبونديلي',
       language:       userData.language       || 'dz',
       welcomeMessage: userData.welcomeMessage || '',
     };

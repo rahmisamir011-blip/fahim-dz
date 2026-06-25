@@ -1,5 +1,5 @@
 /**
- * FAHIM DZ — Instagram Private API Routes
+ * REPONDILI — Instagram Private API Routes
  *
  * POST   /api/ig-private/connect      → login + save session
  * DELETE /api/ig-private/disconnect   → mark disconnected
