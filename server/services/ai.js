@@ -141,7 +141,7 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
   const ds = getDeepSeek();
   if (ds) {
     // Model fallback chain — fastest/cheapest first
-    const DEEPSEEK_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+    const DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-coder'];
 
     for (const modelName of DEEPSEEK_MODELS) {
       try {
@@ -173,7 +173,7 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
 
         const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
 
-        if (modelName !== 'deepseek-v4-flash') {
+        if (modelName !== 'deepseek-chat') {
           console.log(`⚠️ Used fallback model: ${modelName} for tenant ${tenantConfig.storeName || '?'}`);
         } else {
           console.log(`✅ DeepSeek reply via ${modelName} (${reply.length} chars)`);
