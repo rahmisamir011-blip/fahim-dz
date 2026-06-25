@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============ AUTH MODULE ============
 const Auth = {
   isLoggedIn() {
-    return !!localStorage.getItem('fahim_token');
+    return !!localStorage.getItem('FAHIM DZ_token');
   },
 
   login(email, password) {
@@ -295,8 +295,8 @@ const Auth = {
             plan: null,
             createdAt: new Date().toISOString()
           };
-          localStorage.setItem('fahim_token', token);
-          localStorage.setItem('fahim_user', JSON.stringify(user));
+          localStorage.setItem('FAHIM DZ_token', token);
+          localStorage.setItem('FAHIM DZ_user', JSON.stringify(user));
           resolve({ token, user });
         } else {
           reject(new Error('بيانات غير صحيحة'));
@@ -318,8 +318,8 @@ const Auth = {
             plan: 'starter',
             createdAt: new Date().toISOString()
           };
-          localStorage.setItem('fahim_token', token);
-          localStorage.setItem('fahim_user', JSON.stringify(user));
+          localStorage.setItem('FAHIM DZ_token', token);
+          localStorage.setItem('FAHIM DZ_user', JSON.stringify(user));
           resolve({ token, user });
         } else {
           reject(new Error('الرجاء ملء جميع الحقول بشكل صحيح'));
@@ -329,21 +329,21 @@ const Auth = {
   },
 
   logout() {
-    localStorage.removeItem('fahim_token');
-    localStorage.removeItem('fahim_user');
+    localStorage.removeItem('FAHIM DZ_token');
+    localStorage.removeItem('FAHIM DZ_user');
     window.location.href = 'index.html';
   },
 
   getUser() {
     try {
-      return JSON.parse(localStorage.getItem('fahim_user') || 'null');
+      return JSON.parse(localStorage.getItem('FAHIM DZ_user') || 'null');
     } catch {
       return null;
     }
   },
 
   getToken() {
-    return localStorage.getItem('fahim_token');
+    return localStorage.getItem('FAHIM DZ_token');
   }
 };
 
@@ -368,7 +368,7 @@ const PointsSystem = {
 
     user.points = (user.points || 0) + plan.points;
     user.plan = planId;
-    localStorage.setItem('fahim_user', JSON.stringify(user));
+    localStorage.setItem('FAHIM DZ_user', JSON.stringify(user));
 
     return { success: true, points: user.points, plan };
   },
@@ -376,13 +376,13 @@ const PointsSystem = {
   deductPoint(user) {
     if (!user || user.points <= 0) return false;
     user.points -= 1;
-    localStorage.setItem('fahim_user', JSON.stringify(user));
+    localStorage.setItem('FAHIM DZ_user', JSON.stringify(user));
     return true;
   }
 };
 
 // ============ AI BOT SIMULATION ============
-const FahimBot = {
+const FAHIM DZBot = {
   languages: ['ar', 'dz', 'fr', 'en'],
 
   // Simulated AI responses in Algerian Arabic dialect
@@ -443,4 +443,4 @@ const FahimBot = {
 // Export for use in other pages
 window.Auth = Auth;
 window.PointsSystem = PointsSystem;
-window.FahimBot = FahimBot;
+window.FAHIM DZBot = FAHIM DZBot;

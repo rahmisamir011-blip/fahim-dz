@@ -1,26 +1,35 @@
 /**
  * FAHIM DZ — AI Service
- * Primary:  Google Gemini 2.0 Flash (+ 3-model fallback chain)
- * Fallback: OpenAI gpt-4o-mini (when all Gemini quota is exhausted)
+ * Primary:  DeepSeek V4 Flash (+ Pro fallback)
+ * Audio:    Google Gemini 2.0 Flash (for voice message transcription)
  */
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { OpenAI }             = require('openai');
 const axios                  = require('axios');
 
-let openaiClient = null;
-function getOpenAI() {
-  if (!openaiClient && process.env.OPENAI_API_KEY) {
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// ─────────────────────────────────────────────────────────────
+// DeepSeek Client (uses OpenAI-compatible API)
+// ─────────────────────────────────────────────────────────────
+
+let deepseekClient = null;
+function getDeepSeek() {
+  if (!deepseekClient && process.env.DEEPSEEK_API_KEY) {
+    deepseekClient = new OpenAI({
+      baseURL: 'https://api.deepseek.com',
+      apiKey: process.env.DEEPSEEK_API_KEY,
+    });
   }
-  return openaiClient;
+  return deepseekClient;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Gemini Client (kept ONLY for audio transcription fallback)
+// ─────────────────────────────────────────────────────────────
 
 let genAI = null;
-
 function getGenAI() {
-  if (!genAI) {
+  if (!genAI && process.env.GEMINI_API_KEY) {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
   return genAI;
@@ -112,7 +121,7 @@ ${langInstructions[language] || langInstructions.dz}
 }
 
 // ─────────────────────────────────────────────────────────────
-// Main Reply Generator
+// Main Reply Generator — DeepSeek Primary
 // ─────────────────────────────────────────────────────────────
 
 /**
@@ -125,82 +134,71 @@ ${langInstructions[language] || langInstructions.dz}
  * @returns {Promise<{reply: string, orderData: object|null}>}
  */
 async function generateReply(userMessage, history = [], products = [], tenantConfig = {}, posts = []) {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn('⚠️ No GEMINI_API_KEY — trying OpenAI fallback directly.');
-    const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
-    const fallback = await openAiFallback(userMessage, history, systemPrompt, tenantConfig);
-    if (fallback) return fallback;
-    const storeName = tenantConfig.storeName || 'المتجر';
-    return { reply: `مرحباً! واجهنا مشكلة تقنية مؤقتة عند ${storeName}. حاول مرة أخرى قريباً. 🙏`, orderData: null };
-  }
-
-  // Model fallback chain — most capable first
-  const MODEL_CHAIN = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-  ];
-
-  // Convert stored history to Gemini format (last 10 turns)
-  const geminiHistory = history
-    .slice(-10)
-    .map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
-
   const systemPrompt = buildSystemPrompt(tenantConfig, products, posts);
   console.log(`📝 System prompt built: ${systemPrompt.length} chars, ${posts.length} posts injected`);
 
-  for (const modelName of MODEL_CHAIN) {
-    try {
-      const ai = getGenAI();
-      const model = ai.getGenerativeModel({
-        model: modelName,
-        systemInstruction: systemPrompt,
-      });
+  // ── Try DeepSeek (primary) ──
+  const ds = getDeepSeek();
+  if (ds) {
+    // Model fallback chain — fastest/cheapest first
+    const DEEPSEEK_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 
-      const chat = model.startChat({ history: geminiHistory });
-      const result = await chat.sendMessage(userMessage);
-      const rawReply = result.response.text();
+    for (const modelName of DEEPSEEK_MODELS) {
+      try {
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          // inject last 10 history turns
+          ...history.slice(-10).map(m => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content,
+          })),
+          { role: 'user', content: userMessage },
+        ];
 
-      // Extract hidden order data block
-      let orderData = null;
-      const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
-      if (orderMatch) {
-        try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+        const completion = await ds.chat.completions.create({
+          model: modelName,
+          messages,
+          max_tokens: 400,
+          temperature: 0.7,
+        });
+
+        const rawReply = completion.choices[0]?.message?.content || '';
+
+        // Extract hidden order data block
+        let orderData = null;
+        const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
+        if (orderMatch) {
+          try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+        }
+
+        const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
+
+        if (modelName !== 'deepseek-v4-flash') {
+          console.log(`⚠️ Used fallback model: ${modelName} for tenant ${tenantConfig.storeName || '?'}`);
+        } else {
+          console.log(`✅ DeepSeek reply via ${modelName} (${reply.length} chars)`);
+        }
+
+        return { reply, orderData };
+
+      } catch (err) {
+        const errMsg = err.message || String(err);
+        const isQuota    = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('rate');
+        const isNotFound = errMsg.includes('404') || errMsg.includes('not found');
+        const isBadKey   = errMsg.includes('401') || errMsg.includes('API_KEY') || errMsg.includes('invalid') || errMsg.includes('authentication');
+        console.error(`❌ DeepSeek [${modelName}] failed (${isQuota ? 'QUOTA' : isNotFound ? 'NOT_FOUND' : isBadKey ? 'BAD_KEY' : 'ERROR'}): ${errMsg.substring(0, 200)}`);
+        continue;
       }
-
-      const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
-
-      if (modelName !== 'gemini-2.0-flash') {
-        console.log(`⚠️ Used fallback model: ${modelName} for tenant ${tenantConfig.storeName || '?'}`);
-      } else {
-        console.log(`✅ Gemini reply via ${modelName} (${reply.length} chars)`);
-      }
-
-      return { reply, orderData };
-
-    } catch (err) {
-      const errMsg = err.message || String(err);
-      const isQuota    = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED');
-      const isNotFound = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND');
-      const isBadKey   = errMsg.includes('400') || errMsg.includes('API_KEY') || errMsg.includes('invalid');
-      console.error(`❌ Gemini [${modelName}] failed (${isQuota ? 'QUOTA' : isNotFound ? 'NOT_FOUND' : isBadKey ? 'BAD_KEY' : 'ERROR'}): ${errMsg.substring(0, 200)}`);
-      continue;
     }
+
+    console.error(`❌ ALL DeepSeek models failed for tenant "${tenantConfig.storeName || '?'}".`);
+  } else {
+    console.warn('⚠️ No DEEPSEEK_API_KEY — DeepSeek unavailable.');
   }
 
-  // All Gemini models failed — try OpenAI as ultimate fallback
-  const keyStatus = process.env.GEMINI_API_KEY
-    ? `YES (length=${process.env.GEMINI_API_KEY.length}, prefix=${process.env.GEMINI_API_KEY.substring(0, 8)}...)`
-    : 'NO — MISSING!';
-  console.error(`❌ ALL Gemini models failed for tenant "${tenantConfig.storeName || '?'}" — trying OpenAI fallback.`);
-  console.error(`   GEMINI_API_KEY: ${keyStatus}`);
-
-  const openAiResult = await openAiFallback(userMessage, history, systemPrompt, tenantConfig);
-  if (openAiResult) return openAiResult;
+  // ── Gemini text fallback (if key available) ──
+  const geminiFallback = await geminiTextFallback(userMessage, history, systemPrompt, tenantConfig);
+  if (geminiFallback) return geminiFallback;
 
   // Absolute last resort
   const storeName = tenantConfig.storeName || 'المتجر';
@@ -211,54 +209,52 @@ async function generateReply(userMessage, history = [], products = [], tenantCon
 }
 
 // ─────────────────────────────────────────────────────────────
-// OpenAI Fallback (gpt-4o-mini)
+// Gemini Text Fallback (when DeepSeek is down)
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Try OpenAI gpt-4o-mini when all Gemini models are quota-exhausted.
- * @returns {object|null} { reply, orderData } or null if OpenAI also unavailable
- */
-async function openAiFallback(userMessage, history = [], systemPrompt = '', tenantConfig = {}) {
-  const oai = getOpenAI();
-  if (!oai) {
-    console.warn('⚠️ No OPENAI_API_KEY set — cannot use OpenAI fallback.');
+async function geminiTextFallback(userMessage, history = [], systemPrompt = '', tenantConfig = {}) {
+  const ai = getGenAI();
+  if (!ai) {
+    console.warn('⚠️ No GEMINI_API_KEY — cannot use Gemini fallback.');
     return null;
   }
 
-  try {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      // inject last 10 history turns
-      ...history.slice(-10).map(m => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content,
-      })),
-      { role: 'user', content: userMessage },
-    ];
+  const MODEL_CHAIN = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+  const geminiHistory = history
+    .slice(-10)
+    .map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
 
-    const completion = await oai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages,
-      max_tokens: 400,
-      temperature: 0.7,
-    });
+  for (const modelName of MODEL_CHAIN) {
+    try {
+      const model = ai.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
 
-    const rawReply = completion.choices[0]?.message?.content || '';
+      const chat = model.startChat({ history: geminiHistory });
+      const result = await chat.sendMessage(userMessage);
+      const rawReply = result.response.text();
 
-    let orderData = null;
-    const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
-    if (orderMatch) {
-      try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+      let orderData = null;
+      const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
+      if (orderMatch) {
+        try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+      }
+
+      const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
+      console.log(`✅ Gemini fallback reply via ${modelName} (${reply.length} chars)`);
+      return { reply, orderData };
+
+    } catch (err) {
+      console.error(`❌ Gemini fallback [${modelName}] failed: ${(err.message || '').substring(0, 200)}`);
+      continue;
     }
-
-    const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
-    console.log(`✅ OpenAI fallback reply (gpt-4o-mini): "${reply.substring(0, 80)}"`);
-    return { reply, orderData };
-
-  } catch (err) {
-    console.error('❌ OpenAI fallback failed:', err.message?.substring(0, 200));
-    return null;
   }
+
+  return null;
 }
 
 /**
@@ -275,8 +271,8 @@ function detectIntent(message) {
 }
 
 /**
- * Transcribe a voice message and generate a reply — all in one Gemini call.
- * Works with Instagram and Facebook Messenger audio CDN URLs.
+ * Transcribe a voice message and generate a reply.
+ * Uses Gemini for audio transcription (multimodal), then DeepSeek for the reply.
  *
  * @param {string} audioUrl      - Public CDN URL of the audio file
  * @param {Array}  history       - Conversation history
@@ -310,9 +306,6 @@ async function transcribeAudioAndReply(audioUrl, history = [], products = [], te
     };
   }
 
-  // Build system prompt (same as text messages)
-  // (already built above for early exit path)
-
   // Build conversation history in Gemini format
   const geminiHistory = history
     .slice(-10)
@@ -321,75 +314,46 @@ async function transcribeAudioAndReply(audioUrl, history = [], products = [], te
       parts: [{ text: m.content }],
     }));
 
-  // Models that support inline audio (multimodal)
-  const AUDIO_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  // ── Try Gemini for audio transcription + reply ──
+  const ai = getGenAI();
+  if (ai) {
+    const AUDIO_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 
-  for (const modelName of AUDIO_MODELS) {
-    try {
-      const ai    = getGenAI();
-      const model = ai.getGenerativeModel({
-        model: modelName,
-        systemInstruction: systemPrompt,
-      });
+    for (const modelName of AUDIO_MODELS) {
+      try {
+        const model = ai.getGenerativeModel({
+          model: modelName,
+          systemInstruction: systemPrompt,
+        });
 
-      // Send audio inline + instruction in one turn
-      // Gemini will transcribe AND generate a contextual reply simultaneously
-      const chat = model.startChat({ history: geminiHistory });
-      const result = await chat.sendMessage([
-        {
-          inlineData: { data: audioBase64, mimeType },
-        },
-        {
-          text: 'هذه رسالة صوتية من العميل. افهم محتواها ورد عليها بشكل طبيعي كما لو جاءت رسالة نصية.',
-        },
-      ]);
+        const chat = model.startChat({ history: geminiHistory });
+        const result = await chat.sendMessage([
+          {
+            inlineData: { data: audioBase64, mimeType },
+          },
+          {
+            text: 'هذه رسالة صوتية من العميل. افهم محتواها ورد عليها بشكل طبيعي كما لو جاءت رسالة نصية.',
+          },
+        ]);
 
-      const rawReply = result.response.text();
+        const rawReply = result.response.text();
 
-      // Extract hidden order data if any
-      let orderData = null;
-      const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
-      if (orderMatch) {
-        try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+        let orderData = null;
+        const orderMatch = rawReply.match(/\[ORDER_DATA\](.*?)\[\/ORDER_DATA\]/s);
+        if (orderMatch) {
+          try { orderData = JSON.parse(orderMatch[1].trim()); } catch { }
+        }
+
+        const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
+        console.log(`✅ Gemini audio reply via ${modelName}: "${reply.substring(0, 80)}"`);
+
+        return { reply, transcription: '(voice)', orderData };
+
+      } catch (err) {
+        const errMsg = err.message || String(err);
+        console.error(`❌ Gemini audio [${modelName}] failed: ${errMsg.substring(0, 200)}`);
+        continue;
       }
-
-      const reply = rawReply.replace(/\[ORDER_DATA\].*?\[\/ORDER_DATA\]/s, '').trim();
-      console.log(`✅ Gemini audio reply via ${modelName}: "${reply.substring(0, 80)}"`);
-
-      return { reply, transcription: '(voice)', orderData };
-
-    } catch (err) {
-      const errMsg = err.message || String(err);
-      console.error(`❌ Gemini audio [${modelName}] failed: ${errMsg.substring(0, 200)}`);
-      continue;
-    }
-  }
-
-  // All Gemini audio models failed — try OpenAI Whisper transcription + gpt-4o-mini reply
-  console.warn('⚠️ Gemini audio models failed. Trying OpenAI Whisper fallback...');
-  const oai = getOpenAI();
-  if (oai && audioBase64) {
-    try {
-      // Reconstruct buffer for OpenAI
-      const audioBuffer = Buffer.from(audioBase64, 'base64');
-      // OpenAI Whisper requires a File-like object — use a Blob approach via Buffer
-      const { toFile } = require('openai');
-      const audioFile = await toFile(audioBuffer, 'voice.mp4', { type: mimeType || 'audio/mp4' });
-      const transcription = await oai.audio.transcriptions.create({
-        file: audioFile,
-        model: 'whisper-1',
-        language: 'ar',
-      });
-      const transcribedText = transcription.text;
-      console.log(`🎤 Whisper transcription: "${transcribedText?.substring(0, 80)}"`);
-
-      // Now reply using OpenAI gpt-4o-mini with the transcription as the user message
-      const fallbackResult = await openAiFallback(transcribedText, history, systemPrompt, tenantConfig);
-      if (fallbackResult) {
-        return { ...fallbackResult, transcription: transcribedText };
-      }
-    } catch (whisperErr) {
-      console.error('❌ Whisper fallback failed:', whisperErr.message?.substring(0, 200));
     }
   }
 

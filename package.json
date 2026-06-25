@@ -1,7 +1,7 @@
 {
-  "name": "fahim-dz-backend",
+  "name": "FAHIM DZ-backend",
   "version": "1.0.0",
-  "description": "Fahim DZ — AI Sales Agent Backend for Instagram, Facebook & WhatsApp",
+  "description": "FAHIM DZ — AI Sales Agent Backend for Instagram, Facebook & WhatsApp",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

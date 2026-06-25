@@ -5,7 +5,7 @@
     <rect x="2" y="8" width="4" height="34" rx="2" fill="#1e4d8c"/>
     <rect x="2" y="8" width="20" height="4" rx="2" fill="#1e4d8c"/>
     <rect x="2" y="23" width="16" height="4" rx="2" fill="#2d73d4"/>
-    <!-- Blue/teal accent dot -->
+    <!-- Teal accent dot -->
     <circle cx="26" cy="10" r="5" fill="url(#logo-grad)"/>
     <defs>
       <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">

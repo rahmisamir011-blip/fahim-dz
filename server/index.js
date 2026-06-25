@@ -1,6 +1,6 @@
 /**
  * ╔════════════════════════════════════════════════════════╗
- * ║         FAHIM DZ — Backend Server                     ║
+ * ║         FAHIM DZ — Backend Server                    ║
  * ║  Multi-Tenant AI SaaS for IG, Facebook & WhatsApp     ║
  * ║  Deploy: 2026-04-20 — multi-tenant + token refresh    ║
  * ╚════════════════════════════════════════════════════════╝
@@ -55,7 +55,7 @@ app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? [
         process.env.FRONTEND_URL,
-        'https://fahim-dz.onrender.com',
+        'https://FAHIM DZ.onrender.com',
       ].filter(Boolean)
     : '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -138,7 +138,8 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + 's',
     firebase: isFirebaseReady() ? 'connected' : 'DEMO mode',
-    gemini: process.env.GEMINI_API_KEY ? '✅ configured' : '❌ MISSING',
+    deepseek: process.env.DEEPSEEK_API_KEY ? '✅ configured' : '❌ MISSING',
+    gemini: process.env.GEMINI_API_KEY ? '✅ configured (audio fallback)' : '⚠️ not set (no audio)',
     meta: process.env.META_APP_ID ? '✅ configured' : '❌ MISSING',
     webhookUrl: `${process.env.FRONTEND_URL}/webhook/meta`,
     features: ['multi-tenant', 'per-tenant-bot', 'agent-toggle', 'token-auto-refresh'],
@@ -350,7 +351,7 @@ app.get('/privacy.html', (req, res) => {
 
 
 // ── Debug: Full pipeline diagnosis for logged-in user ─────────────────
-// Usage: GET /api/debug/diagnose  (with Authorization: Bearer <fahim_token>)
+// Usage: GET /api/debug/diagnose  (with Authorization: Bearer <FAHIM DZ_token>)
 // Returns pass/fail for every step in the messaging pipeline
 app.get('/api/debug/diagnose', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
@@ -444,9 +445,11 @@ app.get('/api/debug/diagnose', async (req, res) => {
       }
     }
 
-    // Gemini check
-    if (!process.env.GEMINI_API_KEY) fail('gemini', 'GEMINI_API_KEY not set — no AI replies possible');
-    else ok('gemini', 'GEMINI_API_KEY configured');
+    // AI check
+    if (!process.env.DEEPSEEK_API_KEY) fail('deepseek', 'DEEPSEEK_API_KEY not set — no AI replies possible');
+    else ok('deepseek', 'DEEPSEEK_API_KEY configured');
+    if (process.env.GEMINI_API_KEY) ok('gemini', 'GEMINI_API_KEY configured (audio fallback)');
+    else warn('gemini', 'GEMINI_API_KEY not set — voice messages will not be transcribed');
 
     report.summary = report.steps.filter(s => s.status === '❌').length === 0 ? '✅ All checks passed' : '❌ Issues found — check steps above';
     res.json(report);
@@ -480,7 +483,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log('\n');
   console.log('╔════════════════════════════════════════════╗');
-  console.log('║         FAHIM DZ  —  Server Started        ║');
+  console.log('║       FAHIM DZ  —  Server Started         ║');
   console.log('╠════════════════════════════════════════════╣');
   console.log(`║  🌐  http://localhost:${PORT}                  ║`);
   console.log(`║  📡  Webhook: /webhook/meta                ║`);
@@ -489,7 +492,8 @@ app.listen(PORT, () => {
   console.log('╚════════════════════════════════════════════╝');
   console.log(`  Mode: ${process.env.NODE_ENV || 'development'}`);
   console.log(`  Firebase Project: ${process.env.FIREBASE_PROJECT_ID || '⚠️  NOT SET'}`);
-  console.log(`  Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ configured' : '⚠️  NOT SET'}`);
+  console.log(`  DeepSeek AI: ${process.env.DEEPSEEK_API_KEY ? '✅ configured' : '⚠️  NOT SET'}`);
+  console.log(`  Gemini (audio): ${process.env.GEMINI_API_KEY ? '✅ configured' : '⚠️  NOT SET'}`);
   console.log(`  Meta App: ${process.env.META_APP_ID && process.env.META_APP_ID !== 'YOUR_META_APP_ID' ? '✅ configured' : '⚠️  NOT SET (OAuth will show setup guide)'}\n`);
   console.log(`  🏢  Multi-tenant: each user's bot uses their own store config`);
   console.log(`  🔄  Token refresh: running every 24h to keep connections alive\n`);

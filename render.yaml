@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: fahim-dz
+    name: FAHIM DZ
     env: node
     region: frankfurt  # Closest to Algeria
     plan: free         # Upgrade to starter ($7/mo) for always-on
@@ -33,6 +33,8 @@ services:
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
         sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: META_APP_ID
@@ -42,6 +44,6 @@ services:
       - key: META_WEBHOOK_VERIFY_TOKEN
         sync: false
       - key: FRONTEND_URL
-        value: https://fahim-dz.onrender.com
+        value: https://FAHIM DZ.onrender.com
       - key: WHATSAPP_API_VERSION
         value: v19.0

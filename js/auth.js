@@ -32,7 +32,7 @@ function switchTab(tab) {
 }
 
 // ── Redirect if already logged in ────────────────────────────
-if (localStorage.getItem('fahim_token')) {
+if (localStorage.getItem('FAHIM DZ_token')) {
   window.location.href = 'dashboard.html';
 }
 
@@ -92,8 +92,8 @@ loginForm?.addEventListener('submit', async (e) => {
     }
 
     // Save token and user
-    localStorage.setItem('fahim_token', data.token);
-    localStorage.setItem('fahim_user', JSON.stringify(data.user));
+    localStorage.setItem('FAHIM DZ_token', data.token);
+    localStorage.setItem('FAHIM DZ_user', JSON.stringify(data.user));
 
     // Redirect to dashboard
     window.location.href = 'dashboard.html';
@@ -145,8 +145,8 @@ registerForm?.addEventListener('submit', async (e) => {
       return;
     }
 
-    localStorage.setItem('fahim_token', data.token);
-    localStorage.setItem('fahim_user', JSON.stringify(data.user));
+    localStorage.setItem('FAHIM DZ_token', data.token);
+    localStorage.setItem('FAHIM DZ_user', JSON.stringify(data.user));
     window.location.href = 'dashboard.html';
 
   } catch (err) {

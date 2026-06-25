@@ -34,16 +34,25 @@ npm run dev
 
 ---
 
-## 3. OpenAI Setup (الذكاء الاصطناعي)
+## 3. DeepSeek AI Setup (الذكاء الاصطناعي)
 
-1. اذهب إلى [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. اضغط **"Create new secret key"**
-3. انسخ المفتاح إلى `.env`:
+1. اذهب إلى [platform.deepseek.com](https://platform.deepseek.com)
+2. أنشئ حساب مجاني (تحصل على **5 مليون توكن مجاناً**)
+3. اضغط **"API Keys"** → **"Create new key"**
+4. انسخ المفتاح إلى `.env`:
    ```env
-   OPENAI_API_KEY=sk-proj-...
+   DEEPSEEK_API_KEY=sk-...
    ```
 
-> يستخدم النظام نموذج **gpt-4o-mini** (رخيص وسريع)
+> يستخدم النظام نموذج **deepseek-v4-flash** (سريع ورخيص جداً — $0.14/مليون توكن)
+
+### Gemini (اختياري — للرسائل الصوتية فقط)
+1. اذهب إلى [aistudio.google.com](https://aistudio.google.com/app/apikey)
+2. أنشئ مفتاح API مجاني
+3. أضفه في `.env`:
+   ```env
+   GEMINI_API_KEY=AIza...
+   ```
 
 ---
 
@@ -66,7 +75,7 @@ npm run dev
    - للإنتاج: `https://yourdomain.com/webhook/meta`
 3. أدخل **Verify Token** (نفس القيمة في `.env`):
    ```
-   fahim_webhook_secret_2024
+   FAHIM DZ_webhook_secret_2024
    ```
 4. اشترك في الأحداث:
    - `messages`
@@ -103,11 +112,12 @@ FIREBASE_PROJECT_ID=...
 FIREBASE_PRIVATE_KEY="..."
 FIREBASE_CLIENT_EMAIL=...
 
-OPENAI_API_KEY=sk-...
+DEEPSEEK_API_KEY=sk-...
+GEMINI_API_KEY=AIza...  # optional, for voice messages
 
 META_APP_ID=...
 META_APP_SECRET=...
-META_WEBHOOK_VERIFY_TOKEN=fahim_webhook_secret_2024
+META_WEBHOOK_VERIFY_TOKEN=FAHIM DZ_webhook_secret_2024
 ```
 
 ---
@@ -116,7 +126,7 @@ META_WEBHOOK_VERIFY_TOKEN=fahim_webhook_secret_2024
 
 ```bash
 # اختبار التحقق
-curl "http://localhost:3000/webhook/meta?hub.mode=subscribe&hub.verify_token=fahim_webhook_secret_2024&hub.challenge=TEST_CHALLENGE"
+curl "http://localhost:3000/webhook/meta?hub.mode=subscribe&hub.verify_token=FAHIM DZ_webhook_secret_2024&hub.challenge=TEST_CHALLENGE"
 # يجب أن يرد بـ: TEST_CHALLENGE
 
 # Health check
