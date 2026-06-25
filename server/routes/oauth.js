@@ -77,7 +77,9 @@ router.get('/connect/:platform', (req, res) => {
   }
 
   const state = Buffer.from(JSON.stringify({ userId, platform, ts: Date.now() })).toString('base64');
-  const redirectUri = `${BASE_URL}/api/oauth/callback`;
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const baseUrl = `${protocol}://${req.get('host')}`;
+  const redirectUri = `${baseUrl}/api/oauth/callback`;
   const scope = SCOPES[platform];
 
   const oauthUrl = `https://www.facebook.com/${META_API_VERSION}/dialog/oauth?` +
@@ -113,7 +115,9 @@ router.get('/callback', async (req, res) => {
   }
 
   try {
-    const redirectUri = `${BASE_URL}/api/oauth/callback`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
+    const redirectUri = `${baseUrl}/api/oauth/callback`;
 
     // 1. Exchange code for short-lived token
     const tokenRes = await axios.get(`https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`, {
